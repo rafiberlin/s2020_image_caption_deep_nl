@@ -1,0 +1,5 @@
+git+git://github.com/philferriere/cocoapi.git@master#egg=pycocotools&subdirectory=PythonAPI
+numpy
+pandas
+torch
+torchvision
