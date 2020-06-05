@@ -3,6 +3,7 @@
 #as the dataset is huge, we don't want to commit it
 /data
 _playground.ipynb
+_playground.py
 .ipynb_checkpoints
 #macOS
 .DS_Store
