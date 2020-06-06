@@ -2,6 +2,8 @@
 
 #as the dataset is huge, we don't want to commit it
 /data
+#exclude tensorboard outputs.
+/runs
 _playground.ipynb
 _playground.py
 .ipynb_checkpoints
