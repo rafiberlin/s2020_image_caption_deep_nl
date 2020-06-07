@@ -1,0 +1,12 @@
+{
+   "train": {
+      "img": "./data/train2017",
+      "inst": "./data/annotations/instances_train2017.json",
+      "capt": "./data/annotations/captions_train2017.json"
+   },
+   "val": {
+      "img": "./data/val2017",
+      "inst": "./data/annotations/instances_val2017.json",
+      "capt": "./data/annotations/captions_val2017.json"
+   }
+}

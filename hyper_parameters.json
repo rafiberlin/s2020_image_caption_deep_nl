@@ -1,0 +1,20 @@
+{
+   "lr": [
+      0.01,
+      0.001
+   ],
+   "batch_size": [
+      10,
+      100,
+      100
+   ],
+   "shuffle": [
+      true,
+      false
+   ],
+   "epochs": [
+      10,
+      100
+   ],
+   "device": "cuda:0"
+}

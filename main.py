@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 import itertools
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.datasets as dset
-import collections
+from collections import OrderedDict
+import json
 
 
 def get_hyper_parameters():
@@ -19,7 +20,7 @@ def get_hyper_parameters():
     else:
         device = "cpu"
 
-    parameters = collections.OrderedDict([("lr", [0.01, 0.001]),
+    parameters = OrderedDict([("lr", [0.01, 0.001]),
                                           ("batch_size", [10, 100, 100]),
                                           ("shuffle", [True, False]),
                                           ("epochs", [10, 100]),
@@ -28,7 +29,7 @@ def get_hyper_parameters():
     return parameters
 
 
-def get_file_args():
+def get_dataset_file_args():
     file_args = {"train": {"img": "./data/train2017", "inst": "./data/annotations/instances_train2017.json",
                            "capt": "./data/annotations/captions_train2017.json"},
                  "val": {"img": "./data/val2017", "inst": "./data/annotations/instances_val2017.json",
@@ -36,13 +37,25 @@ def get_file_args():
                  }
     return file_args
 
+def create_json_config(params, file_path):
+    with open(file_path, 'w') as json_file:
+        json.dump(params, json_file, indent=3)
+
+def read_json_config(file_path):
+    data = json.load(open(file_path), object_pairs_hook=OrderedDict)
+    return data
+
+DATASET_FILE_PATHS_CONFIG = "dataset_file_args.json"
+HYPERPARAMETER_CONFIG = "hyper_parameters.json"
 
 def main():
-    file_args = get_file_args()
-    hyper_parameters = get_hyper_parameters()
+    file_args = read_json_config(DATASET_FILE_PATHS_CONFIG)
+    hyper_parameters = read_json_config(HYPERPARAMETER_CONFIG)
+
+
     #TODO create a testing split, there is only training and val currently...
-    coco_train_set = dset.CocoDetection(root=file_args["val"]["img"],
-                                        annFile=file_args["val"]["capt"],
+    coco_train_set = dset.CocoDetection(root=file_args["train"]["img"],
+                                        annFile=file_args["train"]["capt"],
                                         transform=transforms.Compose([transforms.ToTensor()])
                                         )
 
