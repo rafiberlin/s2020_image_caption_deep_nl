@@ -21,11 +21,11 @@ def get_hyper_parameters():
         device = "cpu"
 
     parameters = OrderedDict([("lr", [0.01, 0.001]),
-                                          ("batch_size", [10, 100, 100]),
-                                          ("shuffle", [True, False]),
-                                          ("epochs", [10, 100]),
-                                          ("device", device)
-                                          ])
+                              ("batch_size", [10, 100, 100]),
+                              ("shuffle", [True, False]),
+                              ("epochs", [10, 100]),
+                              ("device", device)
+                              ])
     return parameters
 
 
@@ -37,30 +37,32 @@ def get_dataset_file_args():
                  }
     return file_args
 
+
 def create_json_config(params, file_path):
     with open(file_path, 'w') as json_file:
         json.dump(params, json_file, indent=3)
+
 
 def read_json_config(file_path):
     data = json.load(open(file_path), object_pairs_hook=OrderedDict)
     return data
 
+
 DATASET_FILE_PATHS_CONFIG = "dataset_file_args.json"
-HYPERPARAMETER_CONFIG = "hyper_parameters.json"
+HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
+
 
 def main():
-    file_args = read_json_config(DATASET_FILE_PATHS_CONFIG)
-    hyper_parameters = read_json_config(HYPERPARAMETER_CONFIG)
+    file_args = read_json_config(DATA_SET_FILE_PATHS_CONFIG)
+    hyper_parameters = read_json_config(HYPER_PARAMETER_CONFIG)
 
-
-    #TODO create a testing split, there is only training and val currently...
+    # TODO create a testing split, there is only training and val currently...
     coco_train_set = dset.CocoDetection(root=file_args["train"]["img"],
                                         annFile=file_args["train"]["capt"],
                                         transform=transforms.Compose([transforms.ToTensor()])
                                         )
 
     train_loader = torch.utils.data.DataLoader(coco_train_set, hyper_parameters["batch_size"][0])
-
 
     batch_one = next(iter(coco_train_set))
     img, capt = batch_one[0], batch_one[1]
