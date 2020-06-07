@@ -53,7 +53,7 @@ HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
 
 
 def main():
-    file_args = read_json_config(DATA_SET_FILE_PATHS_CONFIG)
+    file_args = read_json_config(DATASET_FILE_PATHS_CONFIG)
     hyper_parameters = read_json_config(HYPER_PARAMETER_CONFIG)
 
     # TODO create a testing split, there is only training and val currently...
