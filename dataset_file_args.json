@@ -8,5 +8,11 @@
       "img": "./data/val2017",
       "inst": "./data/annotations/instances_val2017.json",
       "capt": "./data/annotations/captions_val2017.json"
+   },
+
+   "test": {
+      "img": "./data/test2017",
+      "inst": "./data/annotations/image_info_test2017.json",
+      "capt": "./data/annotations/image_info_test-dev2017.json"
    }
 }

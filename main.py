@@ -11,8 +11,7 @@ import itertools
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.datasets as dset
 from collections import OrderedDict
-import json
-
+import preprocessing
 
 def get_hyper_parameters():
     if torch.cuda.is_available():
@@ -38,33 +37,24 @@ def get_dataset_file_args():
     return file_args
 
 
-def create_json_config(params, file_path):
-    with open(file_path, 'w') as json_file:
-        json.dump(params, json_file, indent=3)
-
-
-def read_json_config(file_path):
-    data = json.load(open(file_path), object_pairs_hook=OrderedDict)
-    return data
-
-
 DATASET_FILE_PATHS_CONFIG = "dataset_file_args.json"
 HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
 
 
 def main():
-    file_args = read_json_config(DATASET_FILE_PATHS_CONFIG)
-    hyper_parameters = read_json_config(HYPER_PARAMETER_CONFIG)
+    file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
+    hyper_parameters = preprocessing.read_json_config(HYPER_PARAMETER_CONFIG)
 
     # TODO create a testing split, there is only training and val currently...
     coco_train_set = dset.CocoDetection(root=file_args["train"]["img"],
                                         annFile=file_args["train"]["capt"],
-                                        transform=transforms.Compose([transforms.ToTensor()])
+                                        transform=transforms.Compose([preprocessing.CenteringPad(),
+                                                                      transforms.Resize((640, 640)), transforms.ToTensor()])
                                         )
 
     train_loader = torch.utils.data.DataLoader(coco_train_set, hyper_parameters["batch_size"][0])
 
-    batch_one = next(iter(coco_train_set))
+    batch_one = next(iter(train_loader))
     img, capt = batch_one[0], batch_one[1]
 
 
