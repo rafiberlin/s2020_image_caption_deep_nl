@@ -11,7 +11,8 @@ import itertools
 from torch.utils.tensorboard import SummaryWriter
 import torchvision.datasets as dset
 from collections import OrderedDict
-import preprocessing
+# own modules
+import preprocessing , model
 
 def get_hyper_parameters():
     if torch.cuda.is_available():
@@ -56,7 +57,7 @@ def main():
 
     batch_one = next(iter(train_loader))
     img, capt = batch_one[0], batch_one[1]
-
-
+    image_network = model.ImageToHiddenState()
+    image_network(img)
 if __name__ == '__main__':
     main()
