@@ -13,6 +13,9 @@ import torchvision.datasets as dset
 from collections import OrderedDict
 # own modules
 import preprocessing , model
+import nltk
+from pathlib import Path
+import re
 
 def get_hyper_parameters():
     if torch.cuda.is_available():
@@ -60,4 +63,30 @@ def main():
     image_network = model.ImageToHiddenState()
     image_network(img)
 if __name__ == '__main__':
-    main()
+
+    def create_list_of_captions(file_path):
+        captions = preprocessing.read_json_config(file_path)
+
+        caption_file = Path("all_labels.json")
+        if not caption_file.is_file():
+            all_captions = []
+            for idx, caption in enumerate(captions["annotations"]):
+                all_captions.append(caption["caption"])
+            preprocessing.create_json_config(all_captions, "all_captions.json")
+        else:
+            all_captions = preprocessing.read_json_config("all_captions.json")
+        return all_captions
+
+    all_captions = create_list_of_captions("data/annotations/captions_train2017.json")
+    tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+    tokenized_captions = tokenizer.tokenize(all_captions)
+
+
+    # Clean sentences
+    def preprocess_text(text):
+        text = ' '.join(word.lower() for word in text.split(" "))
+        text = re.sub(r"([.,!?])", r" \1 ", text)
+        text = re.sub(r"[^a-zA-Z.,!?]+", r" ", text)
+        return text
+
+    cleaned_captions= [preprocess_text(caption) for caption in tokenized_captions]

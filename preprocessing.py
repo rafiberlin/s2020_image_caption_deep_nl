@@ -1,8 +1,13 @@
 from collections import OrderedDict, Counter
 import torchvision.datasets as dset
 import json
+import nltk
+from pathlib import Path
+import re
 from torchvision.transforms.functional import pad
-import torchvision.transforms as transforms
+from torchvision import transforms
+import numbers
+
 
 def create_json_config(params, file_path):
     with open(file_path, 'w') as json_file:
@@ -90,10 +95,12 @@ def print_img_infos(dataset):
     print("Average resolution", stats.get_avg_img_size())
 
 
-from torchvision.transforms.functional import pad
-from torchvision import transforms
-import numpy as np
-import numbers
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r"([.,!?])", r" \1 ", text)
+    text = re.sub(r"[^a-zA-Z.,!?]+", r" ", text)
+    return text
+
 
 
 
@@ -146,3 +153,34 @@ class CenteringPad(object):
     def __repr__(self):
         return self.__class__.__name__ + f'(padding={0}, fill={1}, padding_mode={2})'. \
             format(self.padding, self.fill, self.padding_mode)
+
+def create_list_of_captions(file_path, save_file_path="cleaned_captions.json"):
+    """
+    Given a caption json file for the COCO dataset, lower case the labels
+    and add space before and after punctuation, Preprocessing function from
+    "Natural Language with Pytorch", chapter 3.
+    :param file_path:
+    :param save_file_path:
+    :return:
+    """
+    captions = read_json_config(file_path)
+
+    caption_file = Path(save_file_path)
+    if not caption_file.is_file():
+        tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
+        # gather all captions in a list an tokenize them with nltk
+        cleaned_captions = [preprocess_text(caption["caption"]) for idx, caption in
+                            enumerate(captions["annotations"])]
+        create_json_config(cleaned_captions, save_file_path)
+    else:
+        cleaned_captions = read_json_config(save_file_path)
+    return cleaned_captions
+
+
+if __name__ == '__main__':
+    pass
+
+
+
+
+

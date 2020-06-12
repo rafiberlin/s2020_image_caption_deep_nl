@@ -2,6 +2,11 @@
 
 #as the dataset is huge, we don't want to commit it
 /data
+
+#for now exclude model_storage
+/model_storage
+#exclude the cleaned  captions to reduce github repo size
+cleaned_captions.json
 #exclude tensorboard outputs.
 /runs
 _playground.ipynb
