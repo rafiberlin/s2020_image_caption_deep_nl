@@ -7,6 +7,8 @@
 /model_storage
 #exclude the cleaned  captions to reduce github repo size
 cleaned_captions.json
+
+test*.py
 #exclude tensorboard outputs.
 /runs
 _playground.ipynb
