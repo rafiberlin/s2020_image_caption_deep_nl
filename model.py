@@ -12,6 +12,7 @@ from torch.utils.tensorboard import SummaryWriter
 from collections import  Counter
 import string
 import preprocessing
+from torch.utils.data import Dataset
 
 class ImageToHiddenState(nn.Module):
     """
@@ -191,6 +192,27 @@ def make_embedding_matrix(glove_filepath, words):
 
     return final_embeddings
 
+class CocoDatasetWrapper(Dataset):
+
+    #TODO impose fixed length of the longest caption when vectorizing and test batch retrieval
+    def __init__(self, cocodaset, vectorizer):
+        self.cocodaset = cocodaset
+        self.vectorizer = vectorizer
+
+    def __len__(self):
+        return self.cocodaset.__len__()
+
+    def __getitem__(self, index):
+        image, captions = self.cocodaset.__getitem__(index)
+        # it seams like we always get 5 different captions for an image...
+        for i, caption_reviewer in enumerate(captions):
+                captions[i]["caption"] = self.vectorizer.vectorize(captions[i]["caption"])
+        return image, captions
+
+
+
+
+
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
 
@@ -231,13 +253,14 @@ class CaptionVectorizer(object):
         return x_vector, y_vector
 
     @classmethod
-    def from_dataframe(cls, captions, cutoff=25, exclude_punctuation=True):
+    def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):
 
         word_counts = Counter()
         for caption in captions:
             for token in caption.split(" "):
-                if token not in string.punctuation and exclude_punctuation:
-                    word_counts[token] += 1
+                if exclude_punctuation:
+                    if token not in string.punctuation:
+                        word_counts[token] += 1
                 else:
                     word_counts[token] += 1
 
@@ -300,11 +323,10 @@ class SequenceVocabulary(Vocabulary):
 
 if __name__ == '__main__':
 
-
     cleaned_captions = preprocessing.create_list_of_captions("data/annotations/captions_train2017.json")
     c_vectorizer = CaptionVectorizer.from_dataframe(cleaned_captions)
     words = c_vectorizer.caption_vocab._token_to_idx.keys()
-    embeddings = make_embedding_matrix(glove_filepath="data/glove.6B.100d.txt",
+    embeddings = make_embedding_matrix(glove_filepath="data/glove/glove.6B.100d.txt",
                                        words=words)
 
     print("Ok")
