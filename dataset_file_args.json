@@ -1,19 +1,22 @@
 {
    "train": {
       "img": "./data/train2017",
-      "inst": "./data/annotations/instances_train2017.json",
-      "capt": "./data/annotations/captions_train2017.json"
+      "annotation_dir": "./data/annotations/",
+      "inst": "instances_train2017.json",
+      "capt": "captions_train2017.json"
    },
    "val": {
       "img": "./data/val2017",
-      "inst": "./data/annotations/instances_val2017.json",
-      "capt": "./data/annotations/captions_val2017.json"
+      "annotation_dir": "./data/annotations/",
+      "inst": "instances_val2017.json",
+      "capt": "captions_val2017.json"
    },
 
    "test": {
       "img": "./data/test2017",
-      "inst": "./data/annotations/image_info_test2017.json",
-      "capt": "./data/annotations/image_info_test-dev2017.json"
+      "annotation_dir": "./data/annotations/",
+      "inst": "image_info_test2017.json",
+      "capt": "image_info_test-dev2017.json"
    },
    "embeddings": ".data/glove/glove.6B.100d.txt"
 }
