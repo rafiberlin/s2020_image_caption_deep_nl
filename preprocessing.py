@@ -7,11 +7,12 @@ import re
 from torchvision.transforms.functional import pad
 from torchvision import transforms
 import numbers
+import os
+from nltk.tokenize import word_tokenize
 
-
-def create_json_config(params, file_path):
+def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
-        json.dump(params, json_file, indent=3)
+        json.dump(params, json_file)
 
 
 def read_json_config(file_path):
@@ -20,7 +21,8 @@ def read_json_config(file_path):
     :param file_path:
     :return:
     '''
-    data = json.load(open(file_path), object_pairs_hook=OrderedDict)
+    #data = json.load(open(file_path), object_pairs_hook=OrderedDict)
+    data = json.load(open(file_path))
     return data
 
 
@@ -96,9 +98,15 @@ def print_img_infos(dataset):
 
 
 def preprocess_text(text):
+    """
+    Removes punctuation and add lower case
+    :param text:
+    :return:
+    """
     text = text.lower()
-    text = re.sub(r"([.,!?])", r" \1 ", text)
-    text = re.sub(r"[^a-zA-Z.,!?]+", r" ", text)
+    text = word_tokenize(text)
+    text = [word for word in text if word.isalpha()]
+    text = " ".join(text)
     return text
 
 
@@ -154,7 +162,7 @@ class CenteringPad(object):
         return self.__class__.__name__ + f'(padding={0}, fill={1}, padding_mode={2})'. \
             format(self.padding, self.fill, self.padding_mode)
 
-def create_list_of_captions(file_path, save_file_path="cleaned_captions.json"):
+def create_list_of_captions(caption_dir, file_name, save_file_path="cleaned_captions.json"):
     """
     Given a caption json file for the COCO dataset, lower case the labels
     and add space before and after punctuation, Preprocessing function from
@@ -163,22 +171,33 @@ def create_list_of_captions(file_path, save_file_path="cleaned_captions.json"):
     :param save_file_path:
     :return:
     """
+
+    file_path = os.path.join(caption_dir, file_name)
+    cleaned_file_path = os.path.join(caption_dir, "cleaned_"+file_name)
     captions = read_json_config(file_path)
 
     caption_file = Path(save_file_path)
     if not caption_file.is_file():
-        tokenizer = nltk.data.load('tokenizers/punkt/english.pickle')
-        # gather all captions in a list an tokenize them with nltk
-        cleaned_captions = [preprocess_text(caption["caption"]) for idx, caption in
-                            enumerate(captions["annotations"])]
-        create_json_config(cleaned_captions, save_file_path)
+        cleaned_captions = []
+        for idx, caption in enumerate(captions["annotations"]):
+            cleaned_caption = preprocess_text(caption["caption"])
+            cleaned_captions.append(cleaned_caption)
+            captions[idx] = cleaned_caption
+        create_json_config(cleaned_captions, save_file_path, 0)
+        create_json_config(captions, cleaned_file_path, 0)
     else:
         cleaned_captions = read_json_config(save_file_path)
     return cleaned_captions
 
+def clean_caption_annotations(annotation_dir, annotation_list):
+    for annotation in annotation_list:
+        #transforms captions_train2017.json to captions_train2017_label_only.json
+        l = "_label_only.".join(annotation.split("."))
+        create_list_of_captions(annotation_dir, annotation, l)
+
 
 if __name__ == '__main__':
-    pass
+    clean_caption_annotations("./data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
 
 
 
