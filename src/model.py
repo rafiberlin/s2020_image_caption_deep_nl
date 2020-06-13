@@ -1,17 +1,10 @@
 import torch
-import torchvision
-import torchvision.transforms as transforms
 import torch.nn as nn
 import torch.utils.data
 import torch.nn.functional as F
-import torch.optim as optim
 import numpy as np
-import matplotlib.pyplot as plt
-import itertools
-from torch.utils.tensorboard import SummaryWriter
 from collections import  Counter
 import string
-import preprocessing
 from torch.utils.data import Dataset
 import pandas as pd
 
@@ -322,6 +315,3 @@ class SequenceVocabulary(Vocabulary):
             return self._token_to_idx.get(token, self.unk_index)
         else:
             return self._token_to_idx[token]
-
-if __name__ == '__main__':
-    pass

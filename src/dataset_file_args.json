@@ -1,22 +1,22 @@
 {
    "train": {
-      "img": "./data/train2017",
-      "annotation_dir": "./data/annotations/",
+      "img": "../data/train2017",
+      "annotation_dir": "../data/annotations/",
       "inst": "instances_train2017.json",
       "capt": "cleaned_captions_train2017.json"
    },
    "val": {
-      "img": "./data/val2017",
-      "annotation_dir": "./data/annotations/",
+      "img": "../data/val2017",
+      "annotation_dir": "../data/annotations/",
       "inst": "instances_val2017.json",
       "capt": "cleaned_captions_val2017.json"
    },
 
    "test": {
-      "img": "./data/test2017",
+      "img": "../data/test2017",
       "annotation_dir": "./data/annotations/",
       "inst": "image_info_test2017.json",
       "capt": "image_info_test-dev2017.json"
    },
-   "embeddings": "./data/glove/glove.6B.100d.txt"
+   "embeddings": "../data/glove/glove.6B.100d.txt"
 }

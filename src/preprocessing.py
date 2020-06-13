@@ -37,7 +37,7 @@ class ImageSizeStats(object):
         self.dataset = coco_dataset
         all_shapes = [(self.dataset.coco.imgs[i]["height"], self.dataset.coco.imgs[i]["width"]) for i in self.dataset.coco.imgs]
         if create_json:
-            create_json_config(all_shapes, "shapes.json")
+            create_json_config(all_shapes, "../shapes.json")
 
         self.c = Counter(all_shapes)
         self.avg_img_size = self.__calculate_avg_image_size()
@@ -174,7 +174,7 @@ def create_list_of_captions(caption_dir, file_name, save_file_path=None):
 
     if save_file_path is None:
         #transforms captions_train2017.json to captions_train2017_label_only.json
-        save_file_path = "_label_only.".join(file_name.split("."))
+        save_file_path = os.path.join(caption_dir, "_label_only.".join(file_name.split(".")))
 
     file_path = os.path.join(caption_dir, file_name)
     cleaned_file_path = os.path.join(caption_dir, "cleaned_"+file_name)
@@ -199,7 +199,7 @@ def clean_caption_annotations(annotation_dir, annotation_list):
 
 
 if __name__ == '__main__':
-    clean_caption_annotations("./data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
+    clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
 
 
 

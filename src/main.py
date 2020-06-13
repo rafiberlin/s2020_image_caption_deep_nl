@@ -1,19 +1,12 @@
 import torch
-import torchvision
 import torchvision.transforms as transforms
-import torch.nn as nn
 import torch.utils.data
-import torch.nn.functional as F
-import torch.optim as optim
-import numpy as np
-import matplotlib.pyplot as plt
-import itertools
-from torch.utils.tensorboard import SummaryWriter
 import os
 import torchvision.datasets as dset
 from collections import OrderedDict
 # own modules
-import preprocessing , model
+from src import model, preprocessing
+
 
 def get_hyper_parameters():
     if torch.cuda.is_available():
@@ -39,18 +32,20 @@ def get_dataset_file_args():
     return file_args
 
 
-DATASET_FILE_PATHS_CONFIG = "dataset_file_args.json"
-HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
+DATASET_FILE_PATHS_CONFIG = "./dataset_file_args.json"
+HYPER_PARAMETER_CONFIG = "./hyper_parameters.json"
 
 
 def main():
+
+    pass
     file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
     hyper_parameters = preprocessing.read_json_config(HYPER_PARAMETER_CONFIG)
     cleaned_captions = preprocessing.create_list_of_captions(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     words = c_vectorizer.caption_vocab._token_to_idx.keys()
     embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
-                                       words=words)
+                                             words=words)
 
     image_dir = file_args["train"]["img"]
     caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
