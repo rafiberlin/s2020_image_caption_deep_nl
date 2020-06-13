@@ -274,6 +274,21 @@ class CaptionVectorizer(object):
     def to_serializable(self):
         return {'caption_vocab': self.caption_vocab.to_serializable()}
 
+def generate_batches(dataset, batch_size, shuffle=True,
+                     drop_last=True, device="cpu"):
+    """
+    A generator function which wraps the PyTorch DataLoader. It will
+      ensure each tensor is on the write device location.
+    """
+    dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size,
+                            shuffle=shuffle, drop_last=drop_last)
+
+    for data_dict in dataloader:
+        out_data_dict = {}
+        for name, tensor in data_dict.items():
+            out_data_dict[name] = data_dict[name].to(device)
+        yield out_data_dict
+
 class SequenceVocabulary(Vocabulary):
     def __init__(self, token_to_idx=None, unk_token="<UNK>",
                  mask_token="<MASK>", begin_seq_token="<BEGIN>",

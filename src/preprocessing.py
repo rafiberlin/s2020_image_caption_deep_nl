@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 from torchvision.transforms.functional import pad
 from torchvision import transforms
+import torch
 import numbers
 import os
+import model,main
 from nltk.tokenize import word_tokenize
 
 def create_json_config(params, file_path, indent=3):
@@ -58,6 +60,50 @@ class ImageSizeStats(object):
             w_m += w * self.c[k] / set_size
 
         return h_m, w_m
+
+    def __calculate_avg_image_size(self):
+        set_size = len(self.dataset)
+        h_m = 0.0
+        w_m = 0.0
+        for k in self.c.keys():
+            h, w = k
+            h_m += h * self.c[k] / set_size
+            w_m += w * self.c[k] / set_size
+
+        return h_m, w_m
+
+    def get_RGB_mean(self, image_size=(640,640), batch_size = 300):
+
+        device = main.get_device()
+        mean = torch.zeros(3, device=device)
+        for i_batch, sample_batched in enumerate(torch.utils.data.DataLoader(self.dataset, batch_size)):
+            imgs= sample_batched[0].to(device)
+            mean += imgs.sum((2,3)).sum(0)/(image_size[0]*image_size[1])
+        mean = mean / (len(self.dataset))
+        create_json_config({"mean": [mean[0].item(), mean[1].item(), mean[2].item()]}, "mean.json")
+        return mean
+
+    def get_RGB_sd(self, mean, image_size=(640, 640), batch_size=300):
+        device = main.get_device()
+        sd = torch.zeros(3, device=device)
+        for i_batch, sample_batched in enumerate(torch.utils.data.DataLoader(self.dataset, batch_size)):
+            imgs = sample_batched[0].to(device)
+            # mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1) => adapt to same number of dimensions
+            # to apply the substraction filter wise and element wise
+            s = ((imgs - mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1)) ** 2)
+            # Then just apply the formula for standard deviation
+            sd += s.sum((2, 3)).sum(0) / (image_size[0] * image_size[1])
+        sd = torch.sqrt(sd / ((len(self.dataset)) - 1))
+        return sd
+
+    def get_RGB_mean_sd(self, image_size=(640,640), batch_size=100):
+        mean = torch.FloatTensor([0.31686973571777344, 0.30091845989227295, 0.27439242601394653]).to("cuda:0")
+        #mean = self.get_RGB_mean(image_size, batch_size)
+        sd = self.get_RGB_sd(mean, image_size, batch_size)
+
+        return {"mean": [mean[0].item(), mean[1].item(), mean[2].item()],
+                "sd": [sd[0].item(), sd[1].item(), sd[2].item()]}
+
 
 def print_img_infos_datasets():
     DATASET_FILE_PATHS_CONFIG = "dataset_file_args.json"
@@ -196,8 +242,20 @@ def clean_caption_annotations(annotation_dir, annotation_list):
         create_list_of_captions(annotation_dir, annotation)
 
 
+print(__name__)
+
 if __name__ == '__main__':
     clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
+    coco_train_set = dset.CocoDetection(root="../data/train2017",
+                                        annFile="../data/annotations/cleaned_captions_train2017.json",
+                                        transform=transforms.Compose([CenteringPad(),
+                                                                      transforms.Resize((640, 640)), transforms.ToTensor()])
+                                        )
+    iss = ImageSizeStats(coco_train_set)
+    t = torch.ones(3)
+
+    rgb_means = iss.get_RGB_mean_sd()
+    create_json_config(rgb_means, "rgb_means.json")
 
 
 

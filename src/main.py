@@ -5,15 +5,12 @@ import os
 import torchvision.datasets as dset
 from collections import OrderedDict
 # own modules
-from src import model, preprocessing
+import model
+import preprocessing
 
 
 def get_hyper_parameters():
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    else:
-        device = "cpu"
-
+    device = get_device()
     parameters = OrderedDict([("lr", [0.01, 0.001]),
                               ("batch_size", [10, 100, 100]),
                               ("shuffle", [True, False]),
@@ -22,6 +19,12 @@ def get_hyper_parameters():
                               ])
     return parameters
 
+def get_device():
+    if torch.cuda.is_available():
+        device = "cuda:0"
+    else:
+        device = "cpu"
+    return device
 
 def get_dataset_file_args():
     file_args = {"train": {"img": "./data/train2017", "inst": "./data/annotations/instances_train2017.json",
