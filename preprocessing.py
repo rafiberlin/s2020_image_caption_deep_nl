@@ -162,7 +162,7 @@ class CenteringPad(object):
         return self.__class__.__name__ + f'(padding={0}, fill={1}, padding_mode={2})'. \
             format(self.padding, self.fill, self.padding_mode)
 
-def create_list_of_captions(caption_dir, file_name, save_file_path="cleaned_captions.json"):
+def create_list_of_captions(caption_dir, file_name, save_file_path=None):
     """
     Given a caption json file for the COCO dataset, lower case the labels
     and add space before and after punctuation, Preprocessing function from
@@ -171,6 +171,10 @@ def create_list_of_captions(caption_dir, file_name, save_file_path="cleaned_capt
     :param save_file_path:
     :return:
     """
+
+    if save_file_path is None:
+        #transforms captions_train2017.json to captions_train2017_label_only.json
+        save_file_path = "_label_only.".join(file_name.split("."))
 
     file_path = os.path.join(caption_dir, file_name)
     cleaned_file_path = os.path.join(caption_dir, "cleaned_"+file_name)
@@ -191,9 +195,7 @@ def create_list_of_captions(caption_dir, file_name, save_file_path="cleaned_capt
 
 def clean_caption_annotations(annotation_dir, annotation_list):
     for annotation in annotation_list:
-        #transforms captions_train2017.json to captions_train2017_label_only.json
-        l = "_label_only.".join(annotation.split("."))
-        create_list_of_captions(annotation_dir, annotation, l)
+        create_list_of_captions(annotation_dir, annotation)
 
 
 if __name__ == '__main__':

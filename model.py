@@ -13,6 +13,7 @@ from collections import  Counter
 import string
 import preprocessing
 from torch.utils.data import Dataset
+import pandas as pd
 
 class ImageToHiddenState(nn.Module):
     """
@@ -209,20 +210,17 @@ class CocoDatasetWrapper(Dataset):
                 captions[i]["caption"] = self.vectorizer.vectorize(captions[i]["caption"])
         return image, captions
 
-
-
-
-
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
 
-    def __init__(self, caption_vocab):
+    def __init__(self, caption_vocab, max_sequence_length):
         self.caption_vocab = caption_vocab
+        self.max_sequence_length = max_sequence_length
 
     def get_vocab(self):
         return self.caption_vocab
 
-    def vectorize(self, title, vector_length=-1):
+    def vectorize(self, title):
         """
         Args:
             title (str): the string of words separated by a space
@@ -243,8 +241,7 @@ class CaptionVectorizer(object):
         # it is a cat <end>
         # Multiplication by mask index insures that we are padding to the right for sequences
         # shorter than the max length caption in the data
-        if vector_length < 0:
-            vector_length = len(indices) -1
+        vector_length = self.max_sequence_length -1
 
         x_vector = np.ones(vector_length, dtype=np.int64) * self.caption_vocab.mask_index
         y_vector = np.ones(vector_length, dtype=np.int64) * self.caption_vocab.mask_index
@@ -254,6 +251,10 @@ class CaptionVectorizer(object):
 
     @classmethod
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):
+
+        captions_frame = pd.DataFrame(captions, columns=["captions"])
+        # +2 because we add the starting and ending sequence tags...
+        max_sequence_length = max(map(len, captions_frame.captions)) + 2
 
         word_counts = Counter()
         for caption in captions:
@@ -265,11 +266,12 @@ class CaptionVectorizer(object):
                     word_counts[token] += 1
 
         caption_vocab = SequenceVocabulary()
+
         for word, word_count in word_counts.items():
             if word_count >= cutoff:
                 caption_vocab.add_token(word)
 
-        return cls(caption_vocab)
+        return cls(caption_vocab, max_sequence_length)
 
     @classmethod
     def from_serializable(cls, contents):
@@ -322,11 +324,4 @@ class SequenceVocabulary(Vocabulary):
             return self._token_to_idx[token]
 
 if __name__ == '__main__':
-
-    cleaned_captions = preprocessing.create_list_of_captions("data/annotations/captions_train2017.json")
-    c_vectorizer = CaptionVectorizer.from_dataframe(cleaned_captions)
-    words = c_vectorizer.caption_vocab._token_to_idx.keys()
-    embeddings = make_embedding_matrix(glove_filepath="data/glove/glove.6B.100d.txt",
-                                       words=words)
-
-    print("Ok")
+    pass

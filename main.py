@@ -9,13 +9,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 from torch.utils.tensorboard import SummaryWriter
+import os
 import torchvision.datasets as dset
 from collections import OrderedDict
 # own modules
 import preprocessing , model
-import nltk
-from pathlib import Path
-import re
 
 def get_hyper_parameters():
     if torch.cuda.is_available():
@@ -48,24 +46,31 @@ HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
 def main():
     file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
     hyper_parameters = preprocessing.read_json_config(HYPER_PARAMETER_CONFIG)
-    cleaned_captions = preprocessing.create_list_of_captions("data/annotations/captions_train2017.json")
+    cleaned_captions = preprocessing.create_list_of_captions(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
+    words = c_vectorizer.caption_vocab._token_to_idx.keys()
+    embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
+                                       words=words)
 
+    image_dir = file_args["train"]["img"]
+    caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
     # TODO create a testing split, there is only training and val currently...
-    coco_train_set = dset.CocoDetection(root=file_args["train"]["img"],
-                                        annFile=file_args["train"]["capt"],
+    coco_train_set = dset.CocoDetection(root=image_dir,
+                                        annFile=caption_file_path,
                                         transform=transforms.Compose([preprocessing.CenteringPad(),
                                                                       transforms.Resize((640, 640)), transforms.ToTensor()])
                                         )
 
-    cc2 = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
-    train_loader = torch.utils.data.DataLoader(coco_train_set, hyper_parameters["batch_size"][0])
-    train_loader2 = torch.utils.data.DataLoader(cc2, hyper_parameters["batch_size"][0])
-    batchi = next(iter(train_loader2))
+    coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
+    train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, hyper_parameters["batch_size"][0])
     batch_one = next(iter(train_loader))
     img, capt = batch_one[0], batch_one[1]
     image_network = model.ImageToHiddenState()
-    image_network(img)
+    #image_network(img)
+
+
+
+    print("Ok")
 if __name__ == '__main__':
 
     main()
