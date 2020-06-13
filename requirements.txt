@@ -2,5 +2,6 @@ numpy
 pandas
 torch
 torchvision
+nltk
 git+git://github.com/philferriere/cocoapi.git@master#egg=pycocotools&subdirectory=PythonAPI
 
