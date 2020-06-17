@@ -16,5 +16,6 @@
       10,
       100
    ],
-   "device": "cuda:0"
+   "device": "cuda:0",
+   "rounding": 6
 }

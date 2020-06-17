@@ -18,5 +18,7 @@
       "inst": "image_info_test2017.json",
       "capt": "image_info_test-dev2017.json"
    },
-   "embeddings": "../data/glove/glove.6B.100d.txt"
+   "embeddings": "../data/glove/glove.6B.100d.txt",
+   "rgb_stats": "rgb_stats.json",
+   "model_storage_dir": "../model_storage"
 }

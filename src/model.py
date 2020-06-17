@@ -11,13 +11,15 @@ import pandas as pd
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
+    TODO: make the other parameters configurable like num channel kernel size, strides... it works only with 640 by 640 images now
+
     """
-    def __init__(self):
+    def __init__(self, output_dim= 120):
         super(ImageToHiddenState, self).__init__()
 
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=5, stride=3)
         self.conv2 = nn.Conv2d(in_channels=6, out_channels=12, kernel_size=5, stride=3)
-        self.out = nn.Linear(in_features=12 * 7 * 7, out_features=120)
+        self.out = nn.Linear(in_features=12 * 7 * 7, out_features=output_dim)
 
     def forward(self, t):
         t = self.conv1(t)
@@ -34,6 +36,71 @@ class ImageToHiddenState(nn.Module):
 
         return t
 
+
+class LSTMModel(nn.Module):
+
+    """
+    Results: (NO sorting per length during training needed)
+
+    epoch: 120, loss: 13.1952, train acc: 89.12%, dev acc: 75.33%
+    Overall Learning Time 131.0737464
+    test acc: 76.08%
+
+    Used Params
+
+    N_EPOCHS = 120
+    LEARNING_RATE = 0.01
+    REPORT_EVERY = 5
+    EMBEDDING_DIM = 30
+    HIDDEN_DIM = 20
+    BATCH_SIZE = 150
+    N_LAYERS = 1
+
+
+    """
+
+    # I added the padding index, as it is important to flag the index
+    # that contains dummy information to speed up learning in embeddings
+    def __init__(self,
+                 embedding_dim,
+                 character_set_size,
+                 hidden_dim_rnn,
+                 hidden_dim_cnn,
+                 n_classes,
+                 padding_idx,
+                 rnn_layers=1
+                 ):
+        super(LSTMModel, self).__init__()
+        self.embedding_dim = embedding_dim
+        self.character_set_size = character_set_size
+        self.rnn_layers = rnn_layers
+        self.hidden_dim_rnn = hidden_dim_rnn
+        self.n_classes = n_classes
+
+        self.image_cnn = ImageToHiddenState()
+        self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
+                                embedding_dim=self.embedding_dim,
+                                padding_idx=padding_idx)
+
+        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers)
+        self.linear = nn.Linear(self.hidden_dim_rnn, n_classes)
+
+    def forward(self, inputs):
+        # WRITE CODE HERE
+        imgs, labels = inputs
+        image_hidden = self.image_cnn(imgs)
+        embeds = self.embeddings(labels)
+
+        # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
+        lstm_out, hidden = self.lstm(embeds)
+
+        # WRITE MORE CODE HERE
+        # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
+        # the second entry the first hidden state
+        classes = self.linear(hidden[0])
+        # squeeze make out.shape to batch_size times num_classes
+        out = F.log_softmax(classes.squeeze(), dim=1)
+        return out
 
 class Vocabulary(object):
     """Class to process text and extract vocabulary for mapping"""

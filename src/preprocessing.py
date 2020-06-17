@@ -78,8 +78,8 @@ class ImageSizeStats(object):
         mean = torch.zeros(3, device=device)
         for i_batch, sample_batched in enumerate(torch.utils.data.DataLoader(self.dataset, batch_size)):
             imgs= sample_batched[0].to(device)
-            mean += imgs.sum((2,3)).sum(0)/(image_size[0]*image_size[1])
-        mean = mean / (len(self.dataset))
+            mean += imgs.sum((2, 3)).sum(0)
+        mean = mean / (len(self.dataset)*image_size[0]*image_size[1])
         create_json_config({"mean": [mean[0].item(), mean[1].item(), mean[2].item()]}, "mean.json")
         return mean
 
@@ -90,15 +90,15 @@ class ImageSizeStats(object):
             imgs = sample_batched[0].to(device)
             # mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1) => adapt to same number of dimensions
             # to apply the substraction filter wise and element wise
-            s = ((imgs - mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1)) ** 2)
+            s = ((imgs - mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1)).pow(2))
             # Then just apply the formula for standard deviation
-            sd += s.sum((2, 3)).sum(0) / (image_size[0] * image_size[1])
-        sd = torch.sqrt(sd / ((len(self.dataset)) - 1))
+            sd += s.sum((2, 3)).sum(0)
+        sd = torch.sqrt(sd / ((len(self.dataset)) * image_size[0] * image_size[1]))
         return sd
 
     def get_RGB_mean_sd(self, image_size=(640,640), batch_size=100):
-        mean = torch.FloatTensor([0.31686973571777344, 0.30091845989227295, 0.27439242601394653]).to("cuda:0")
-        #mean = self.get_RGB_mean(image_size, batch_size)
+        #mean = torch.FloatTensor([0.31686973571777344, 0.30091845989227295, 0.27439242601394653]).to("cuda:0")
+        mean = self.get_RGB_mean(image_size, batch_size)
         sd = self.get_RGB_sd(mean, image_size, batch_size)
 
         return {"mean": [mean[0].item(), mean[1].item(), mean[2].item()],
@@ -255,7 +255,7 @@ if __name__ == '__main__':
     t = torch.ones(3)
 
     rgb_means = iss.get_RGB_mean_sd()
-    create_json_config(rgb_means, "rgb_means.json")
+    create_json_config(rgb_means, "rgb_stats.json")
 
 
 
