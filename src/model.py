@@ -66,7 +66,6 @@ class LSTMModel(nn.Module):
                  character_set_size,
                  hidden_dim_rnn,
                  hidden_dim_cnn,
-                 n_classes,
                  padding_idx,
                  rnn_layers=1
                  ):
@@ -75,7 +74,7 @@ class LSTMModel(nn.Module):
         self.character_set_size = character_set_size
         self.rnn_layers = rnn_layers
         self.hidden_dim_rnn = hidden_dim_rnn
-        self.n_classes = n_classes
+        self.n_classes = character_set_size
 
         self.image_cnn = ImageToHiddenState()
         self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
@@ -83,7 +82,7 @@ class LSTMModel(nn.Module):
                                 padding_idx=padding_idx)
 
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers)
-        self.linear = nn.Linear(self.hidden_dim_rnn, n_classes)
+        self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
 
     def forward(self, inputs):
         # WRITE CODE HERE

@@ -39,7 +39,16 @@ def get_dataset_file_args():
 
 DATASET_FILE_PATHS_CONFIG = "./dataset_file_args.json"
 HYPER_PARAMETER_CONFIG = "./hyper_parameters.json"
-
+N_EPOCHS = 120
+LEARNING_RATE = 0.01
+REPORT_EVERY = 5
+EMBEDDING_DIM = 30
+HIDDEN_DIM = 20
+HIDDEN_DIM_CNN = 100
+HIDDEN_DIM_RNN = 100
+BATCH_SIZE = 150
+N_LAYERS = 1
+PADDING_WORD = "<MASK>"
 
 def main():
     file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
@@ -48,8 +57,9 @@ def main():
                                                              file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     words = c_vectorizer.caption_vocab._token_to_idx.keys()
-    embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
-                                             words=words)
+    padding_idx = c_vectorizer.caption_vocab._token_to_idx["<MASK>"]
+    #embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
+    #                                         words=words)
 
     image_dir = file_args["train"]["img"]
     caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
@@ -70,8 +80,9 @@ def main():
     train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, hyper_parameters["batch_size"][0])
     batch_one = next(iter(train_loader))
     img, capt = batch_one[0], batch_one[1]
-    image_network = model.ImageToHiddenState()
-    image_network(img)
+    vocabulary_size = len(c_vectorizer.caption_vocab)
+    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx)
+    network(batch_one)
 
     print("Ok")
 

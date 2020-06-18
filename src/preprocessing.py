@@ -230,7 +230,7 @@ def create_list_of_captions(caption_dir, file_name, save_file_path=None):
         for idx, caption in enumerate(captions["annotations"]):
             cleaned_caption = preprocess_text(caption["caption"])
             cleaned_captions.append(cleaned_caption)
-            captions[idx] = cleaned_caption
+            captions["annotations"][idx]["caption"] = cleaned_caption
         create_json_config(cleaned_captions, save_file_path, 0)
         create_json_config(captions, cleaned_file_path, 0)
     else:
@@ -241,10 +241,7 @@ def clean_caption_annotations(annotation_dir, annotation_list):
     for annotation in annotation_list:
         create_list_of_captions(annotation_dir, annotation)
 
-
-print(__name__)
-
-if __name__ == '__main__':
+def calculate_rgb_stats():
     clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
     coco_train_set = dset.CocoDetection(root="../data/train2017",
                                         annFile="../data/annotations/cleaned_captions_train2017.json",
@@ -256,6 +253,9 @@ if __name__ == '__main__':
 
     rgb_means = iss.get_RGB_mean_sd()
     create_json_config(rgb_means, "rgb_stats.json")
+
+if __name__ == '__main__':
+    clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
 
 
 
