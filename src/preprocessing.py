@@ -206,7 +206,7 @@ class CenteringPad(object):
         return self.__class__.__name__ + f'(padding={0}, fill={1}, padding_mode={2})'. \
             format(self.padding, self.fill, self.padding_mode)
 
-def create_list_of_captions(caption_dir, file_name, save_file_path=None):
+def create_list_of_captions_and_clean(caption_dir, file_name, save_file_path=None):
     """
     Given a caption json file for the COCO dataset, lower case the labels
     and add space before and after punctuation, Preprocessing function from
@@ -216,14 +216,19 @@ def create_list_of_captions(caption_dir, file_name, save_file_path=None):
     :return:
     """
 
-    if save_file_path is None:
-        #transforms captions_train2017.json to captions_train2017_label_only.json
-        save_file_path = os.path.join(caption_dir, "_label_only.".join(file_name.split(".")))
-
     file_path = os.path.join(caption_dir, file_name)
-    cleaned_file_path = os.path.join(caption_dir, "cleaned_"+file_name)
-    captions = read_json_config(file_path)
+    if not file_name.startswith("cleaned_"):
+        cleaned_file_path = os.path.join(caption_dir, "cleaned_"+file_name)
+        if save_file_path is None:
+            # transforms captions_train2017.json to cleaned_captions_train2017_label_only.json
+            save_file_path = os.path.join(caption_dir, "cleaned_" + "_label_only.".join(file_name.split(".")))
+    else:
+        cleaned_file_path = os.path.join(caption_dir, file_name)
+        if save_file_path is None:
+            # transforms captions_train2017.json to cleaned_captions_train2017_label_only.json
+            save_file_path = os.path.join(caption_dir, "_label_only.".join(file_name.split(".")))
 
+    captions = read_json_config(file_path)
     caption_file = Path(save_file_path)
     if not caption_file.is_file():
         cleaned_captions = []
@@ -239,7 +244,7 @@ def create_list_of_captions(caption_dir, file_name, save_file_path=None):
 
 def clean_caption_annotations(annotation_dir, annotation_list):
     for annotation in annotation_list:
-        create_list_of_captions(annotation_dir, annotation)
+        create_list_of_captions_and_clean(annotation_dir, annotation)
 
 def calculate_rgb_stats():
     clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])

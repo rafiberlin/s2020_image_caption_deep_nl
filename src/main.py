@@ -53,8 +53,8 @@ PADDING_WORD = "<MASK>"
 def main():
     file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
     hyper_parameters = preprocessing.read_json_config(HYPER_PARAMETER_CONFIG)
-    cleaned_captions = preprocessing.create_list_of_captions(file_args["train"]["annotation_dir"],
-                                                             file_args["train"]["capt"])
+    cleaned_captions = preprocessing.create_list_of_captions_and_clean(file_args["train"]["annotation_dir"],
+                                                                       file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     words = c_vectorizer.caption_vocab._token_to_idx.keys()
     padding_idx = c_vectorizer.caption_vocab._token_to_idx["<MASK>"]

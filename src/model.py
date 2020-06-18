@@ -81,14 +81,17 @@ class LSTMModel(nn.Module):
                                 embedding_dim=self.embedding_dim,
                                 padding_idx=padding_idx)
 
-        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers)
+        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
 
     def forward(self, inputs):
         # WRITE CODE HERE
         imgs, labels = inputs
+        # TODO feed the different labels from outside
+        input_label, out_label = labels[0]["vectorized_caption"]
+
         image_hidden = self.image_cnn(imgs)
-        embeds = self.embeddings(labels)
+        embeds = self.embeddings(input_label)
 
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
         lstm_out, hidden = self.lstm(embeds)
@@ -96,9 +99,9 @@ class LSTMModel(nn.Module):
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
         # the second entry the first hidden state
-        classes = self.linear(hidden[0])
+        classes = self.linear(lstm_out)
         # squeeze make out.shape to batch_size times num_classes
-        out = F.log_softmax(classes.squeeze(), dim=1)
+        out = F.log_softmax(classes, dim=3)
         return out
 
 class Vocabulary(object):
@@ -266,7 +269,7 @@ class CocoDatasetWrapper(Dataset):
         image, captions = self.cocodaset.__getitem__(index)
         # it seams like we always get 5 different captions for an image...
         for i, caption_reviewer in enumerate(captions):
-                captions[i]["caption"] = self.vectorizer.vectorize(captions[i]["caption"])
+                captions[i]["vectorized_caption"] = self.vectorizer.vectorize(captions[i]["caption"])
         return image, captions
 
 class CaptionVectorizer(object):
