@@ -75,8 +75,11 @@ class LSTMModel(nn.Module):
         self.rnn_layers = rnn_layers
         self.hidden_dim_rnn = hidden_dim_rnn
         self.n_classes = character_set_size
-
-        self.image_cnn = ImageToHiddenState()
+        # The output should be the same size as the hidden state size of RNN
+        # but attention, if you change the value from 120 to something else,
+        # you will probably need to adjsut the sizes of the kernels / stride in
+        # ImageToHiddenState
+        self.image_cnn = ImageToHiddenState(hidden_dim_rnn)
         self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
                                 embedding_dim=self.embedding_dim,
                                 padding_idx=padding_idx)
@@ -91,17 +94,21 @@ class LSTMModel(nn.Module):
         input_label, out_label = labels[0]["vectorized_caption"]
 
         image_hidden = self.image_cnn(imgs)
+        image_hidden = image_hidden.unsqueeze(dim=0)
+        # when image_hidden needs to be provided for lstm,
+        # we need to init the memory cell as well
+        lstm_cell_initial_state = torch.zeros(image_hidden.shape , dtype=torch.float)
         embeds = self.embeddings(input_label)
 
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
-        lstm_out, hidden = self.lstm(embeds)
+        lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
 
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
         # the second entry the first hidden state
         classes = self.linear(lstm_out)
         # squeeze make out.shape to batch_size times num_classes
-        out = F.log_softmax(classes, dim=3)
+        out = F.log_softmax(classes, dim=2)
         return out
 
 class Vocabulary(object):
