@@ -14,7 +14,7 @@ class ImageToHiddenState(nn.Module):
     TODO: make the other parameters configurable like num channel kernel size, strides... it works only with 640 by 640 images now
 
     """
-    def __init__(self, output_dim= 120):
+    def __init__(self, output_dim=120):
         super(ImageToHiddenState, self).__init__()
 
         self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=5, stride=3)
@@ -67,7 +67,7 @@ class LSTMModel(nn.Module):
                  hidden_dim_rnn,
                  hidden_dim_cnn,
                  padding_idx,
-                 rnn_layers=1
+                 rnn_layers=1,
                  ):
         super(LSTMModel, self).__init__()
         self.embedding_dim = embedding_dim
@@ -79,7 +79,7 @@ class LSTMModel(nn.Module):
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
         # ImageToHiddenState
-        self.image_cnn = ImageToHiddenState(hidden_dim_rnn)
+        self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
         self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
                                 embedding_dim=self.embedding_dim,
                                 padding_idx=padding_idx)
@@ -93,6 +93,7 @@ class LSTMModel(nn.Module):
 
 
         imgs, labels = inputs
+        current_device = str(imgs.device)
         batch_size = len(imgs)
         image_hidden = self.image_cnn(imgs)
         #Image hidden is used to init the hidden states of the lstm cells.
@@ -101,7 +102,7 @@ class LSTMModel(nn.Module):
         image_hidden = image_hidden.unsqueeze(dim=0)
         # when image_hidden needs to be provided for lstm,
         # we need to init the memory cell as well
-        lstm_cell_initial_state = torch.zeros(image_hidden.shape , dtype=torch.float)
+        lstm_cell_initial_state = torch.zeros(image_hidden.shape , dtype=torch.float, device=current_device)
         embeds = self.embeddings(labels)
         # for a given sample, it "flattens" all the captions into the second dimension
         # we get from a 4 dimension shape: batch_size * number of captions * caption length * embdeing dimension
@@ -277,15 +278,14 @@ class CocoDatasetWrapper(Dataset):
         self.vectorizer = vectorizer
 
     @classmethod
-    def transform_batch_for_training(cls, batch):
+    def transform_batch_for_training(cls, batch, device="cpu"):
         """
 
         :param batch:
         :return: a tuple of 3 element: the images, the in-vectorized captions and
                 the out-vectorized captions for the loss function
         """
-        imgs, captions, vectorized_captions = batch
-        return imgs, vectorized_captions[0], vectorized_captions[1]
+        return batch[0].to(device), batch[2][0].to(device), batch[2][1].to(device)
 
 
     def __len__(self):

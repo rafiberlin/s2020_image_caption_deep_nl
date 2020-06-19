@@ -57,10 +57,13 @@ PADDING_WORD = "<MASK>"
 def main():
     file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
     hyper_parameters = preprocessing.read_json_config(HYPER_PARAMETER_CONFIG)
+    device = hyper_parameters["device"]
+    if not torch.cuda.is_available():
+        device = "cpu"
+
     cleaned_captions = preprocessing.create_list_of_captions_and_clean(file_args["train"]["annotation_dir"],
                                                                        file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
-    words = c_vectorizer.caption_vocab._token_to_idx.keys()
     padding_idx = c_vectorizer.caption_vocab._token_to_idx["<MASK>"]
     #embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
     #                                         words=words)
@@ -89,8 +92,8 @@ def main():
 
     vocabulary_size = len(c_vectorizer.caption_vocab)
 
-    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx)
-    loss_function = nn.NLLLoss(ignore_index=padding_idx)
+    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx).to(device)
+    loss_function = nn.NLLLoss(ignore_index=padding_idx).to(device)
     optimizer = optim.Adam(params=network.parameters(), lr=LEARNING_RATE)
 
 
@@ -108,7 +111,7 @@ def main():
 
 
         #TODO build a bigger loop...
-        images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one)
+        images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
 
         network.zero_grad()
         # flatten all caption , flatten all batch and sequences, to make its category comparable
@@ -136,7 +139,7 @@ def reminder_rnn_size():
     seq = 3
     batch_size = 5
 
-    #self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
+    #self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True, dev)
     rnn = nn.LSTM(feature_size, hidden_size, rnn_layer, batch_first=True)
     input = torch.randn(batch_size, seq, feature_size)
     h0 = torch.randn(rnn_layer, batch_size, hidden_size)
