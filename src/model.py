@@ -89,17 +89,21 @@ class LSTMModel(nn.Module):
 
     def forward(self, inputs):
         # WRITE CODE HERE
+
+        batch_size = len(inputs)
+
         imgs, labels = inputs
-        # TODO feed the different labels from outside
-        input_label, out_label = labels[0]["vectorized_caption"]
 
         image_hidden = self.image_cnn(imgs)
         image_hidden = image_hidden.unsqueeze(dim=0)
         # when image_hidden needs to be provided for lstm,
         # we need to init the memory cell as well
         lstm_cell_initial_state = torch.zeros(image_hidden.shape , dtype=torch.float)
-        embeds = self.embeddings(input_label)
-
+        embeds = self.embeddings(labels)
+        # for a given sample, it "flattens" all the captions into the second dimension
+        # we get from a 4 dimension shape: batch_size * number of captions * caption length * embdeing dimension
+        # to a 3 dimension shape batch_size * (number of captions * caption length) * embdeing dimension
+        embeds = embeds.reshape((batch_size,-1,self.embedding_dim))
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
         lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
 
@@ -269,15 +273,33 @@ class CocoDatasetWrapper(Dataset):
         self.cocodaset = cocodaset
         self.vectorizer = vectorizer
 
+    @classmethod
+    def transform_batch_for_training(cls, batch):
+        """
+
+        :param batch:
+        :return: a tuple of 3 element: the images, the in-vectorized captions and
+                the out-vectorized captions for the loss function
+        """
+        imgs, captions, vectorized_captions = batch
+        return imgs, vectorized_captions[0], vectorized_captions[1]
+
+
     def __len__(self):
         return self.cocodaset.__len__()
 
     def __getitem__(self, index):
         image, captions = self.cocodaset.__getitem__(index)
         # it seams like we always get 5 different captions for an image...
+        num_captions = len(captions)
+        # self.vectorizer.max_sequence_length - 1 because in label and out labels are shifted by 1 to match
+        # for example, if the last real word in a caption is cat, the expected output caption is <end>...
+        vectorized_captions_in = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1) , dtype=torch.long)
+        vectorized_captions_out = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1) , dtype=torch.long)
         for i, caption_reviewer in enumerate(captions):
-                captions[i]["vectorized_caption"] = self.vectorizer.vectorize(captions[i]["caption"])
-        return image, captions
+                c = self.vectorizer.vectorize(captions[i]["caption"])
+                vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
+        return image, captions, (vectorized_captions_in,vectorized_captions_out)
 
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
@@ -317,6 +339,8 @@ class CaptionVectorizer(object):
         x_vector[:len(indices) - 1] = indices[:len(indices) - 1]
         y_vector[: len(indices) - 1] = indices[1:]
         return x_vector, y_vector
+
+
 
     @classmethod
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):

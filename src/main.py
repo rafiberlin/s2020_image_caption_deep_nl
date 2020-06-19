@@ -81,9 +81,10 @@ def main():
                                         )
 
     coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
-    train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, hyper_parameters["batch_size"][0])
+    batch_size = hyper_parameters["batch_size"][0]
+    train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
     batch_one = next(iter(train_loader))
-    img, capt = batch_one[0], batch_one[1]
+    images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one)
 
 
 
@@ -93,17 +94,11 @@ def main():
     loss_function = nn.NLLLoss()
     optimizer = optim.Adam(params=network.parameters(), lr=LEARNING_RATE)
     network.zero_grad()
-    # flatten all caption
-    f = capt[0]["vectorized_caption"][1]
-    expected = capt[0]["vectorized_caption"][1].reshape(-1)
-    # flatten all batch and sequences, to make it category comparable
+    # flatten all caption , flatten all batch and sequences, to make its category comparable
     # for the loss function
-    log_prediction = network(batch_one)
-    log_prediction = log_prediction.reshape(expected.shape[0], -1)
-
-
-    # TODO
-    loss = loss_function(log_prediction,  expected.reshape(-1))
+    out_captions = out_captions.reshape(-1)
+    log_prediction = network((images, in_captions)).reshape(out_captions.shape[0],-1)
+    loss = loss_function(log_prediction,  out_captions)
 
 
     from timeit import default_timer as timer
@@ -113,18 +108,6 @@ def main():
     for epoch in range(N_EPOCHS):
         total_loss = 0
 
-        # Generally speaking, it's a good idea to shuffle your
-        # datasets once every epoch.
-
-        # WRITE CODE HERE
-        # Sort your training set according to word-length,
-        # so that similar-length words end up near each other
-        # You can use the function get_word_length as your sort key.
-
-        # When I sort the trainset based on word length,
-        # the learning get stuck in a local minimum with accuracy at around 16 percent
-        # on training data, this is why I am not using it
-        # trainset = sorted(trainset, key=get_word_length)
 
         for i in range(0, len(trainset), BATCH_SIZE):
             minibatchwords = trainset[i:i + BATCH_SIZE]
