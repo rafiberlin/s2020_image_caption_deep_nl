@@ -83,51 +83,68 @@ def main():
     coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
     batch_size = hyper_parameters["batch_size"][0]
     train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
-    batch_one = next(iter(train_loader))
-    images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one)
+
 
 
 
     vocabulary_size = len(c_vectorizer.caption_vocab)
 
     network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx)
-    loss_function = nn.NLLLoss()
+    loss_function = nn.NLLLoss(ignore_index=padding_idx)
     optimizer = optim.Adam(params=network.parameters(), lr=LEARNING_RATE)
-    network.zero_grad()
-    # flatten all caption , flatten all batch and sequences, to make its category comparable
-    # for the loss function
-    out_captions = out_captions.reshape(-1)
-    log_prediction = network((images, in_captions)).reshape(out_captions.shape[0],-1)
-    loss = loss_function(log_prediction,  out_captions)
+
 
 
     from timeit import default_timer as timer
 
     start = timer()
     # --- training loop ---
+    batch_one = next(iter(train_loader))
+
+
+    network.train()
+    total_loss = 0
     for epoch in range(N_EPOCHS):
-        total_loss = 0
 
 
-        for i in range(0, len(trainset), BATCH_SIZE):
-            minibatchwords = trainset[i:i + BATCH_SIZE]
+        #TODO build a bigger loop...
+        images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one)
 
-            # print(minibatchwords)
-            model.zero_grad()
-            mb_x, mb_y = get_minibatch(minibatchwords, character_map, languages)
-            # WRITE CODE HERE
-            log_prediction = model(mb_x)
-            loss = loss_function(log_prediction, mb_y)
-            total_loss += loss.item()
-            loss.backward()
-            optimizer.step()
-
-        print('epoch: %d, loss: %.4f' % ((epoch + 1), total_loss))
+        network.zero_grad()
+        # flatten all caption , flatten all batch and sequences, to make its category comparable
+        # for the loss function
+        out_captions = out_captions.reshape(-1)
+        log_prediction = network((images, in_captions)).reshape(out_captions.shape[0], -1)
+        # Warning if we are unable to learn, use the contiguus function of the tensor
+        # it insures that the sequnce is not messed up during reshape
+        loss = loss_function(log_prediction, out_captions)
+        loss.backward()
+        print("Loss:", loss.item())
+        # step 5. use optimizer to take gradient step
+        optimizer.step()
 
 
     end = timer()
     print("Overall Learning Time", end - start)
 
+
+def reminder_rnn_size():
+
+    rnn_layer = 1
+    feature_size = 30
+    hidden_size = 20
+    seq = 3
+    batch_size = 5
+
+    #self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
+    rnn = nn.LSTM(feature_size, hidden_size, rnn_layer, batch_first=True)
+    input = torch.randn(batch_size, seq, feature_size)
+    h0 = torch.randn(rnn_layer, batch_size, hidden_size)
+    c0 = torch.randn(rnn_layer, batch_size, hidden_size)
+    output, (hn, cn) = rnn(input, (h0, c0))
+    print(output.shape)
+    print(hn.shape)
 if __name__ == '__main__':
     main()
+    #reminder_rnn_size()
 

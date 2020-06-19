@@ -90,11 +90,14 @@ class LSTMModel(nn.Module):
     def forward(self, inputs):
         # WRITE CODE HERE
 
-        batch_size = len(inputs)
+
 
         imgs, labels = inputs
-
+        batch_size = len(imgs)
         image_hidden = self.image_cnn(imgs)
+        #Image hidden is used to init the hidden states of the lstm cells.
+        # it must have the shape (number of layers *time number of direction) * batch size * hidden dim
+        # size we just do 1 layer 1 direction, unsqueeze(0) is fine
         image_hidden = image_hidden.unsqueeze(dim=0)
         # when image_hidden needs to be provided for lstm,
         # we need to init the memory cell as well
