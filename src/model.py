@@ -81,8 +81,7 @@ class LSTMModel(nn.Module):
         # ImageToHiddenState
         self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
         self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
-                                embedding_dim=self.embedding_dim,
-                                padding_idx=padding_idx)
+                                embedding_dim=self.embedding_dim)
 
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
@@ -109,7 +108,8 @@ class LSTMModel(nn.Module):
         # to a 3 dimension shape batch_size * (number of captions * caption length) * embdeing dimension
         embeds = embeds.reshape((batch_size,-1,self.embedding_dim))
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
-        lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
+        #lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
+        lstm_out, hidden = self.lstm(embeds, (image_hidden, image_hidden))
 
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,

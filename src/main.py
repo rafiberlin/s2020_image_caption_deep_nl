@@ -47,7 +47,7 @@ HYPER_PARAMETER_CONFIG = "./hyper_parameters.json"
 N_EPOCHS = 120
 LEARNING_RATE = 0.01
 REPORT_EVERY = 5
-EMBEDDING_DIM = 30
+EMBEDDING_DIM = 60
 HIDDEN_DIM = 20
 HIDDEN_DIM_CNN = 100
 HIDDEN_DIM_RNN = 100
@@ -105,7 +105,7 @@ def main():
         print("Start Training")
     batch_one = next(iter(train_loader))
     if start_training:
-        loss_function = nn.NLLLoss(ignore_index=padding_idx).to(device)
+        loss_function = nn.NLLLoss().to(device)
         optimizer = optim.Adam(params=network.parameters(), lr=LEARNING_RATE)
         start = timer()
         # --- training loop ---
@@ -133,17 +133,36 @@ def main():
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
 
-    starting_token = c_vectorizer.create_starting_sequence().to(device)
+
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
-    input_for_prediction = (images[0].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
-    predicted_label = predict_greedy(network, input_for_prediction, device)
-    label = []
-    for c in predicted_label[0][0]:
-        l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
-        label.append(l)
-        if l == END_WORD:
-            break
-    print("predicted label", " ".join(label))
+
+    #TODO Model predicts kind of weird stuff. Changin the init state of the LSTM cell
+    # to the image and increasing the embedding size helped, but we need to observe that...
+    # Moreover, argmax is not the best => we should sample the words from the prob distribution implied by
+    # the predictions...
+    for idx in range(batch_size):
+        starting_token = c_vectorizer.create_starting_sequence().to(device)
+        input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+        predicted_label = predict_greedy(network, input_for_prediction, device)
+        label = []
+        for c in predicted_label[0][0]:
+            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+            label.append(l)
+            if l == END_WORD:
+                break
+            if l == PADDING_WORD:
+                break
+        print("predicted label", " ".join(label))
+        for c_idx in range(5):
+            label.clear()
+            for c in in_captions[idx][c_idx]:
+                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                label.append(l)
+                if l == END_WORD:
+                    break
+                if l == PADDING_WORD:
+                    break
+            print("real label", " ".join(label))
 
 
 def predict_greedy(model, input_for_prediction, device, prediction_number= 1, found_sequences = 0, end_token_idx= 3):
