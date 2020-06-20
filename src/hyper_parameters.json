@@ -17,5 +17,6 @@
       100
    ],
    "device": "cuda:0",
-   "rounding": 6
+   "rounding": 6,
+   "use_glove": false
 }
