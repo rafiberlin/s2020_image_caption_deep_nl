@@ -9,6 +9,7 @@ import torch.optim as optim
 import numpy as np
 from collections import OrderedDict
 from timeit import default_timer as timer
+import gensim
 # own modules
 import model
 import preprocessing
@@ -40,8 +41,12 @@ def main():
                                                                        file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
-    # embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
-    #                                         words=words)
+
+    if hyper_parameters["use_glove"]:
+        glove_model = gensim.models.KeyedVectors.load_word2vec_format('data/glove.6B.100d.bin.word2vec')
+        glove_weights = glove_model.wv
+        embedding = nn.Embedding.from_pretrained(glove_weights)
+        embedding.weight.required_grad = False
 
     image_dir = file_args["train"]["img"]
     caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
@@ -115,7 +120,7 @@ def main():
     first_predicted_idx = pred[0][0].argmax()
     predicted_word = c_vectorizer.caption_vocab._idx_to_token[first_predicted_idx]
     print("predicted word:", predicted_word)
-    pass
+    
 def reminder_rnn_size():
     rnn_layer = 1
     feature_size = 30
