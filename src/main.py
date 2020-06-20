@@ -132,20 +132,59 @@ def main():
         end = timer()
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
-    # c_vectorizer.max_sequence_length - 1 because the length is one shorter if we only predict...
 
-    begin_word_idx = c_vectorizer.caption_vocab._token_to_idx[BEGIN_WORD]
-    starting_token = torch.ones(c_vectorizer.max_sequence_length - 1, dtype=torch.long).to(device) * padding_idx
-    starting_token[0] = begin_word_idx
+    starting_token = c_vectorizer.create_starting_sequence().to(device)
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
+    input_for_prediction = (images[0].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+    predicted_label = predict_greedy(network, input_for_prediction, device)
+    label = []
+    for c in predicted_label[0][0]:
+        label.append(c_vectorizer.caption_vocab._idx_to_token[c.item()])
+    print("predicted label", " ".join(label))
 
-    network.eval()
+
+def predict_greedy(model, input_for_prediction, device, prediction_number= 1, found_sequences = 0, end_token_idx= 3):
+    seq_len = input_for_prediction[1].shape[2]
+
+    image, vectorized_seq = input_for_prediction
+
+    # first dimension 0 keeps indices, 1 keeps probaility
+    track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
+    model.eval()
     #TODO implement the whole sequence prediction using beam search...
-    pred = network((images[0].unsqueeze(dim=0),starting_token.unsqueeze(dim=0).unsqueeze(dim=0)))
-    first_predicted_idx = pred[0][0].argmax()
-    predicted_word = c_vectorizer.caption_vocab._idx_to_token[first_predicted_idx]
-    print("predicted word:", predicted_word)
-    pass
+    prediction_number = prediction_number - found_sequences
+    for idx in range(seq_len - 1):
+        pred = model(input_for_prediction)
+        first_predicted = torch.topk(pred[0][idx], prediction_number)
+        losses = first_predicted.values
+        indices = first_predicted.indices
+        idx_found_sequences = indices[indices == end_token_idx]
+        found_sequences = idx_found_sequences.sum()
+        vectorized_seq[0][0][idx+1] = indices[0]
+        input_for_prediction = (image, vectorized_seq)
+        if found_sequences > 0:
+            print("prediction has stopped early")
+            break
+    return vectorized_seq
+
+def predict(model, input_for_prediction, device, prediction_number= 3, found_sequences = 0, end_token_idx= 3):
+    seq_len = input_for_prediction[1].shape[2]
+    # first dimension 0 keeps indices, 1 keeps probaility
+    track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
+    model.eval()
+    #TODO implement the whole sequence prediction using beam search...
+    prediction_number = prediction_number - found_sequences
+    for idx in range(seq_len):
+        pred = model(input_for_prediction)
+        first_predicted = torch.topk(pred[0][idx], prediction_number)
+        losses = first_predicted.values
+        indices = first_predicted.indices
+        idx_found_sequences = indices[indices == end_token_idx]
+        found_sequences = idx_found_sequences.sum()
+        if found_sequences >= prediction_number:
+            break
+        #predicted_word = c_vectorizer.caption_vocab._idx_to_token[]
+        pass
 def reminder_rnn_size():
     rnn_layer = 1
     feature_size = 30

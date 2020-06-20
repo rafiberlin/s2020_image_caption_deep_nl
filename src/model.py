@@ -343,7 +343,14 @@ class CaptionVectorizer(object):
         y_vector[: len(indices) - 1] = indices[1:]
         return x_vector, y_vector
 
-
+    def create_starting_sequence(self):
+        """
+        Creates pytorch array with a starting sequence token
+        :return:
+        """
+        starting_token = torch.ones(self.max_sequence_length - 1, dtype=torch.long) * self.caption_vocab.mask_index
+        starting_token[0] = self.caption_vocab.begin_seq_index
+        return starting_token
 
     @classmethod
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):
