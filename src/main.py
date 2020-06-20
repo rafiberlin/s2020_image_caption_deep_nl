@@ -13,35 +13,6 @@ from timeit import default_timer as timer
 import model
 import preprocessing
 
-
-def get_hyper_parameters():
-    device = get_device()
-    parameters = OrderedDict([("lr", [0.01, 0.001]),
-                              ("batch_size", [10, 100, 100]),
-                              ("shuffle", [True, False]),
-                              ("epochs", [10, 100]),
-                              ("device", device)
-                              ])
-    return parameters
-
-
-def get_device():
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    else:
-        device = "cpu"
-    return device
-
-
-def get_dataset_file_args():
-    file_args = {"train": {"img": "./data/train2017", "inst": "./data/annotations/instances_train2017.json",
-                           "capt": "./data/annotations/captions_train2017.json"},
-                 "val": {"img": "./data/val2017", "inst": "./data/annotations/instances_val2017.json",
-                         "capt": "./data/annotations/captions_val2017.json"}
-                 }
-    return file_args
-
-
 DATASET_FILE_PATHS_CONFIG = "./dataset_file_args.json"
 HYPER_PARAMETER_CONFIG = "./hyper_parameters.json"
 N_EPOCHS = 120
@@ -57,7 +28,6 @@ PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
 IMAGE_SIZE = 320
-
 
 def main():
     file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
@@ -116,7 +86,7 @@ def main():
             # TODO build a bigger loop...
             images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
 
-            network.zero_grad()
+            optimizer.zero_grad()
             # flatten all caption , flatten all batch and sequences, to make its category comparable
             # for the loss function
             out_captions = out_captions.reshape(-1)

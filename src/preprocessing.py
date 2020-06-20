@@ -14,18 +14,9 @@ def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
         json.dump(params, json_file)
 
-
 def read_json_config(file_path):
-    '''
-
-    :param file_path:
-    :return:
-    '''
-    #data = json.load(open(file_path), object_pairs_hook=OrderedDict)
-    data = json.load(open(file_path))
-    return data
-
-
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 class ImageSizeStats(object):
     """
@@ -48,7 +39,6 @@ class ImageSizeStats(object):
         return self.c.most_common(n)
     def least_common(self, n=1):
         return self.c.most_common()[-n]
-
 
     def __calculate_avg_image_size(self):
         set_size = len(self.dataset)
@@ -152,11 +142,6 @@ def preprocess_text(text):
     text = [word for word in text if word.isalpha()]
     text = " ".join(text)
     return text
-
-
-
-
-
 
 class CenteringPad(object):
     """
