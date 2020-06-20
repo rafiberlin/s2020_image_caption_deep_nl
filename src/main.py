@@ -14,49 +14,44 @@ import gensim
 import model
 import preprocessing as prep
 
-DATASET_FILE_PATHS_CONFIG = "dataset_file_args.json"
 HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
-N_EPOCHS = 120
-LEARNING_RATE = 0.01
 REPORT_EVERY = 5
 EMBEDDING_DIM = 30
 HIDDEN_DIM = 20
 HIDDEN_DIM_CNN = 100
 HIDDEN_DIM_RNN = 100
 BATCH_SIZE = 150
-N_LAYERS = 1
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
 IMAGE_SIZE = 320
 
 def main():
-    file_args = prep.read_json_config(DATASET_FILE_PATHS_CONFIG)
-    hyper_parameters = prep.read_json_config(HYPER_PARAMETER_CONFIG)
-    device = hyper_parameters["device"]
+    hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
+    device = hparams["device"]
     if not torch.cuda.is_available():
         device = "cpu"
 
-    cleaned_captions = prep.create_list_of_captions_and_clean(file_args, "train")
+    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
 
-    if hyper_parameters["use_glove"]:
+    if hparams["use_glove"]:
         ## TODO: pass embedding to model
         print("Loading glove vectors...")
-        glove_path = os.path.join(file_args['root'], file_args['glove_embedding'])
+        glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
         glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
         glove_weights = torch.FloatTensor(glove_model.vectors)
         embedding = nn.Embedding.from_pretrained(glove_weights)
         embedding.weight.requires_grad = False
 
-    image_dir = os.path.join(file_args['root'], file_args['train'])
+    image_dir = os.path.join(hparams['root'], hparams['train'])
 
-    caption_file_path = prep.get_captions_path(file_args, file_args['train'])
+    caption_file_path = prep.get_captions_path(hparams, hparams['train'])
     print("Image dir:", image_dir)
     print("Caption file path:", caption_file_path)
 
-    #rgb_stats = prep.read_json_config(file_args["rgb_stats"])
+    #rgb_stats = prep.read_json_config(hparams["rgb_stats"])
     #stats_rounding = hyper_parameters["rounding"]
     #rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
     #rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
@@ -71,19 +66,19 @@ def main():
                                         )
 
     coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
-    batch_size = hyper_parameters["batch_size"][0]
+    batch_size = hparams["batch_size"][0]
     train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
 
     vocabulary_size = len(c_vectorizer.caption_vocab)
 
     ## Generate output folder if non-existent
-    model_dir = file_args["model_storage"]
+    model_dir = hparams["model_storage"]
     if not os.path.isdir(model_dir):
         try:
             os.mkdir(model_dir)
         except OSError:
             print(f"Creation of the directory {model_dir} failed")
-    model_path = os.path.join(model_dir, file_args["model_name"])
+    model_path = os.path.join(model_dir, hparams["model_name"])
     print("Model save path:", model_path)
 
     ## Training start
@@ -98,13 +93,13 @@ def main():
     batch_one = next(iter(train_loader))
     if start_training:
         loss_function = nn.NLLLoss(ignore_index=padding_idx).to(device)
-        optimizer = optim.Adam(params=network.parameters(), lr=LEARNING_RATE)
+        optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
         start = timer()
         # --- training loop ---
         torch.cuda.empty_cache()
         network.train()
         total_loss = 0
-        for epoch in range(N_EPOCHS):
+        for epoch in range(hparams["num_epochs"]):
             # TODO build a bigger loop...
             images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
 

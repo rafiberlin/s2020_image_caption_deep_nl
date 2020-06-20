@@ -1,8 +1,4 @@
 {
-   "lr": [
-      0.01,
-      0.001
-   ],
    "batch_size": [
       10,
       100,
@@ -18,5 +14,14 @@
    ],
    "device": "cuda:0",
    "rounding": 6,
-   "use_glove": false
+   "use_glove": false,
+   "root": "data",
+   "train": "train2014",
+   "val": "val2017",
+   "test": "test2017",
+   "glove_embedding": "glove.6B.100d.bin.word2vec",
+   "rgb_stats": "rgb_stats.json",
+   "model_storage": "model_storage",
+   "model_name": "network.pt",
+   "num_epochs": 120
 }
