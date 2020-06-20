@@ -139,7 +139,10 @@ def main():
     predicted_label = predict_greedy(network, input_for_prediction, device)
     label = []
     for c in predicted_label[0][0]:
-        label.append(c_vectorizer.caption_vocab._idx_to_token[c.item()])
+        l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+        label.append(l)
+        if l == END_WORD:
+            break
     print("predicted label", " ".join(label))
 
 
