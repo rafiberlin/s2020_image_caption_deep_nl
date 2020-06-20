@@ -37,19 +37,18 @@ def main():
     if not torch.cuda.is_available():
         device = "cpu"
 
-    cleaned_captions = preprocessing.create_list_of_captions_and_clean(file_args["train"]["annotation_dir"],
+    cleaned_captions = preprocessing.create_list_of_captions_and_clean(file_args["annotations"],
                                                                        file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
 
     if hyper_parameters["use_glove"]:
         glove_model = gensim.models.KeyedVectors.load_word2vec_format('data/glove.6B.100d.bin.word2vec')
-        glove_weights = glove_model.wv
-        embedding = nn.Embedding.from_pretrained(glove_weights)
-        embedding.weight.required_grad = False
+        embedding = nn.Embedding.from_pretrained(glove_model.wv)
+        embedding.weight.requires_grad = False
 
     image_dir = file_args["train"]["img"]
-    caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
+    caption_file_path = os.path.join(file_args["annotations"], file_args["train"]["capt"])
     rgb_stats = preprocessing.read_json_config(file_args["rgb_stats"])
     stats_rounding = hyper_parameters["rounding"]
     rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
