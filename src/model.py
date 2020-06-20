@@ -297,8 +297,6 @@ class CaptionVectorizer(object):
         y_vector[: len(indices) - 1] = indices[1:]
         return x_vector, y_vector
 
-
-
     @classmethod
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):
 

@@ -14,7 +14,7 @@ import gensim
 import model
 import preprocessing as prep
 
-HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
+HYPER_PARAMETER_CONFIG = "hparams.json"
 REPORT_EVERY = 5
 EMBEDDING_DIM = 30
 HIDDEN_DIM = 20
@@ -129,7 +129,7 @@ def main():
     network.eval()
     #TODO implement the whole sequence prediction using beam search...
     pred = network((images[0].unsqueeze(dim=0),starting_token.unsqueeze(dim=0).unsqueeze(dim=0)))
-    first_predicted_idx = pred[0][0].argmax()
+    first_predicted_idx = pred[0][0].argmax().item()
     predicted_word = c_vectorizer.caption_vocab._idx_to_token[first_predicted_idx]
     print("predicted word:", predicted_word)
     

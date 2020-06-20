@@ -26,3 +26,6 @@ Requirements have been automatically generated using [pigar](https://github.com/
 ```
 python3 src/main.py
 ```
+
+Model checkpoints will be saved in the model_storage directory,
+which will be created if non-existent.
