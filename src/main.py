@@ -157,7 +157,7 @@ def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions
         predicted_label = predict_greedy(network, input_for_prediction, device)
         label = []
         for c in predicted_label[0][0]:
-            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+            l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
             if l != END_WORD and l != BEGIN_WORD:
                 label.append(l)
             if l == END_WORD:
@@ -168,7 +168,7 @@ def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions
         for c_idx in range(5):
             label.clear()
             for c in in_captions[idx][c_idx]:
-                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
                 if l != END_WORD and l != BEGIN_WORD and l != PADDING_WORD:
                     label.append(l)
                 if l == END_WORD:
@@ -197,7 +197,7 @@ def print_some_predictions(c_vectorizer, network, batch_size, device, images, in
         predicted_label = predict_greedy(network, input_for_prediction, device)
         label = []
         for c in predicted_label[0][0]:
-            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+            l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
             if l != END_WORD and l != BEGIN_WORD:
                 label.append(l)
             if l == END_WORD:
@@ -209,7 +209,7 @@ def print_some_predictions(c_vectorizer, network, batch_size, device, images, in
         for c_idx in range(5):
             label.clear()
             for c in in_captions[idx][c_idx]:
-                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
                 if l != END_WORD and l != BEGIN_WORD:
                     label.append(l)
                 if l == END_WORD:
@@ -282,7 +282,7 @@ def predict(model, input_for_prediction, device, prediction_number= 3, found_seq
         found_sequences = idx_found_sequences.sum()
         if found_sequences >= prediction_number:
             break
-        #predicted_word = c_vectorizer.caption_vocab._idx_to_token[]
+        #predicted_word = c_vectorizer.get_vocab()._idx_to_token[]
         pass
 def reminder_rnn_size():
     rnn_layer = 1
