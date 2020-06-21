@@ -66,8 +66,9 @@ class LSTMModel(nn.Module):
                  character_set_size,
                  hidden_dim_rnn,
                  hidden_dim_cnn,
-                 padding_idx,
+                 padding_idx=None,
                  rnn_layers=1,
+                 pretrained_embeddings=None
                  ):
         super(LSTMModel, self).__init__()
         self.embedding_dim = embedding_dim
@@ -81,9 +82,7 @@ class LSTMModel(nn.Module):
         # ImageToHiddenState
         self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
         self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
-                                embedding_dim=self.embedding_dim,
-                                padding_idx=padding_idx)
-
+                                embedding_dim=self.embedding_dim, _weight=pretrained_embeddings, padding_idx=padding_idx)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
     
@@ -109,7 +108,8 @@ class LSTMModel(nn.Module):
         # to a 3 dimension shape batch_size * (number of captions * caption length) * embdeing dimension
         embeds = embeds.reshape((batch_size,-1,self.embedding_dim))
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
-        lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
+        #lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
+        lstm_out, hidden = self.lstm(embeds, (image_hidden, image_hidden))
 
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
@@ -296,6 +296,15 @@ class CaptionVectorizer(object):
         x_vector[:len(indices) - 1] = indices[:len(indices) - 1]
         y_vector[: len(indices) - 1] = indices[1:]
         return x_vector, y_vector
+
+    def create_starting_sequence(self):
+        """
+        Creates pytorch array with a starting sequence token
+        :return:
+        """
+        starting_token = torch.ones(self.max_sequence_length - 1, dtype=torch.long) * self.caption_vocab.mask_index
+        starting_token[0] = self.caption_vocab.begin_seq_index
+        return starting_token
 
     @classmethod
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):

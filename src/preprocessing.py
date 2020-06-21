@@ -204,7 +204,7 @@ def create_list_of_captions_and_clean(hparams, name):
 
     caption_dir = os.path.join(hparams['root'],"annotations")
     file_path = get_captions_path(hparams, hparams[name])
-    save_file_path = os.path.join(caption_dir, f"cleaned_{hparams[name]}.json")
+    save_file_path = os.path.join(caption_dir, f"cleaned_captions_{hparams[name]}.json")
 
     with open(file_path, "r") as f:
         captions = json.load(f)
@@ -218,13 +218,17 @@ def create_list_of_captions_and_clean(hparams, name):
                 captions["annotations"][idx]["caption"] = cleaned_caption
 
             with open(save_file_path, "w") as f:
-                json.dump(cleaned_captions, f)
+                json.dump(captions, f)
 
             return cleaned_captions
         else:
             print("Reading pre-cleaned captions...")
             with open(save_file_path, "r") as f:
-                return json.load(f)
+                captions = json.load(f)
+                cleaned_captions = []
+                for caption in tqdm(captions["annotations"]):
+                    cleaned_captions.append(caption["caption"])
+                return cleaned_captions
 
 def clean_caption_annotations(annotation_dir, annotation_list):
     for annotation in annotation_list:

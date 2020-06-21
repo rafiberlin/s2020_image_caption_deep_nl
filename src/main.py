@@ -11,12 +11,17 @@ from collections import OrderedDict
 from timeit import default_timer as timer
 import gensim
 # own modules
+from pycocoevalcap.bleu.bleu import Bleu
+from pycocoevalcap.cider.cider import Cider
+from pycocoevalcap.meteor.meteor import Meteor
+from pycocoevalcap.rouge.rouge import Rouge
+
 import model
 import preprocessing as prep
 
 HYPER_PARAMETER_CONFIG = "hparams.json"
 REPORT_EVERY = 5
-EMBEDDING_DIM = 30
+EMBEDDING_DIM = 60
 HIDDEN_DIM = 20
 HIDDEN_DIM_CNN = 100
 HIDDEN_DIM_RNN = 100
@@ -35,6 +40,7 @@ def main():
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
+    embedding = None
 
     if hparams["use_glove"]:
         ## TODO: pass embedding to model
@@ -47,14 +53,15 @@ def main():
 
     image_dir = os.path.join(hparams['root'], hparams['train'])
 
-    caption_file_path = prep.get_captions_path(hparams, hparams['train'])
+    caption_file_path = prep.get_cleaned_captions_path(hparams, hparams['train'])
     print("Image dir:", image_dir)
     print("Caption file path:", caption_file_path)
 
     #rgb_stats = prep.read_json_config(hparams["rgb_stats"])
-    #stats_rounding = hyper_parameters["rounding"]
-    #rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
-    #rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
+    stats_rounding = hparams["rounding"]
+    rgb_stats ={"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
+    rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
+    rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
     # TODO create a testing split, there is only training and val currently...
     coco_train_set = dset.CocoDetection(root=image_dir,
                                         annFile=caption_file_path,
@@ -82,7 +89,8 @@ def main():
     print("Model save path:", model_path)
 
     ## Training start
-    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx).to(device)
+    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx=None, pretrained_embeddings=embedding).to(device)
+    #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
     if os.path.isfile(model_path):
         network.load_state_dict(torch.load(model_path))
@@ -92,7 +100,7 @@ def main():
         print("Start Training")
     batch_one = next(iter(train_loader))
     if start_training:
-        loss_function = nn.NLLLoss(ignore_index=padding_idx).to(device)
+        loss_function = nn.NLLLoss().to(device)
         optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
         start = timer()
         # --- training loop ---
@@ -109,7 +117,7 @@ def main():
             out_captions = out_captions.reshape(-1)
             log_prediction = network((images, in_captions)).reshape(out_captions.shape[0], -1)
             # Warning if we are unable to learn, use the contiguus function of the tensor
-            # it insures that the sequnce is not messed up during reshape
+            # it insures that the sequence is not messed up during reshape
             loss = loss_function(log_prediction, out_captions)
             loss.backward()
             print("Loss:", loss.item())
@@ -119,20 +127,159 @@ def main():
         end = timer()
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
-    # c_vectorizer.max_sequence_length - 1 because the length is one shorter if we only predict...
 
-    begin_word_idx = c_vectorizer.caption_vocab._token_to_idx[BEGIN_WORD]
-    starting_token = torch.ones(c_vectorizer.max_sequence_length - 1, dtype=torch.long).to(device) * padding_idx
-    starting_token[0] = begin_word_idx
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
+    print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
+    test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
 
-    network.eval()
+def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+    """
+    Demonstrates of the eval API is working.
+    :param c_vectorizer:
+    :param network:
+    :param batch_size:
+    :param device:
+    :param images:
+    :param in_captions:
+    :param batch_one:
+    :return:
+    """
+
+    hyp = {}
+    ref = {}
+    for idx in range(batch_size):
+        starting_token = c_vectorizer.create_starting_sequence().to(device)
+        input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+        predicted_label = predict_greedy(network, input_for_prediction, device)
+        label = []
+        for c in predicted_label[0][0]:
+            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+            if l != END_WORD and l != BEGIN_WORD:
+                label.append(l)
+            if l == END_WORD:
+                break
+            if l == PADDING_WORD:
+                break
+        h = " ".join(label)
+        for c_idx in range(5):
+            label.clear()
+            for c in in_captions[idx][c_idx]:
+                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                if l != END_WORD and l != BEGIN_WORD and l != PADDING_WORD:
+                    label.append(l)
+                if l == END_WORD:
+                    break
+                if l == PADDING_WORD:
+                    break
+            r = " ".join(label)
+            id = batch_one[1][c_idx]["id"][idx]
+            ref[id]=[r]
+            hyp[id] = [h]
+
+    scores = calc_scores(ref, ref)
+    print("Best Possible Score:", scores)
+
+    scores = calc_scores(ref, hyp)
+    print("Our Score:", scores)
+
+def print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions):
+    #TODO Model predicts kind of weird stuff. Changin the init state of the LSTM cell
+    # to the image and increasing the embedding size helped, but we need to observe that...
+    # Moreover, argmax is not the best => we should sample the words from the prob distribution implied by
+    # the predictions...
+    for idx in range(batch_size):
+        starting_token = c_vectorizer.create_starting_sequence().to(device)
+        input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+        predicted_label = predict_greedy(network, input_for_prediction, device)
+        label = []
+        for c in predicted_label[0][0]:
+            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+            if l != END_WORD and l != BEGIN_WORD:
+                label.append(l)
+            if l == END_WORD:
+                break
+            if l == PADDING_WORD:
+                break
+        print("##################################\n")
+        print("predicted label:", " ".join(label))
+        for c_idx in range(5):
+            label.clear()
+            for c in in_captions[idx][c_idx]:
+                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                if l != END_WORD and l != BEGIN_WORD:
+                    label.append(l)
+                if l == END_WORD:
+                    break
+                if l == PADDING_WORD:
+                    break
+            print("real label:", " ".join(label))
+
+
+
+def calc_scores(ref, hypo):
+
+    """
+    Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
+    ref, dictionary of reference sentences (id, sentence)
+    hypo, dictionary of hypothesis sentences (id, sentence)
+    score, dictionary of scores
+    """
+    scorers = [
+        (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
+    ]
+    final_scores = {}
+    for scorer, method in scorers:
+        score, scores = scorer.compute_score(ref, hypo)
+        if type(score) == list:
+            for m, s in zip(method, score):
+                final_scores[m] = s
+        else:
+            final_scores[method] = score
+    return final_scores
+
+
+
+def predict_greedy(model, input_for_prediction, device, prediction_number= 1, found_sequences = 0, end_token_idx= 3):
+    seq_len = input_for_prediction[1].shape[2]
+
+    image, vectorized_seq = input_for_prediction
+
+    # first dimension 0 keeps indices, 1 keeps probaility
+    track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
+    model.eval()
     #TODO implement the whole sequence prediction using beam search...
-    pred = network((images[0].unsqueeze(dim=0),starting_token.unsqueeze(dim=0).unsqueeze(dim=0)))
-    first_predicted_idx = pred[0][0].argmax().item()
-    predicted_word = c_vectorizer.caption_vocab._idx_to_token[first_predicted_idx]
-    print("predicted word:", predicted_word)
-    
+    prediction_number = prediction_number - found_sequences
+    for idx in range(seq_len - 1):
+        pred = model(input_for_prediction)
+        first_predicted = torch.topk(pred[0][idx], prediction_number)
+        losses = first_predicted.values
+        indices = first_predicted.indices
+        idx_found_sequences = indices[indices == end_token_idx]
+        found_sequences = idx_found_sequences.sum()
+        vectorized_seq[0][0][idx+1] = indices[0]
+        input_for_prediction = (image, vectorized_seq)
+        if found_sequences > 0:
+            break
+    return vectorized_seq
+
+def predict(model, input_for_prediction, device, prediction_number= 3, found_sequences = 0, end_token_idx= 3):
+    seq_len = input_for_prediction[1].shape[2]
+    # first dimension 0 keeps indices, 1 keeps probaility
+    track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
+    model.eval()
+    #TODO implement the whole sequence prediction using beam search...
+    prediction_number = prediction_number - found_sequences
+    for idx in range(seq_len):
+        pred = model(input_for_prediction)
+        first_predicted = torch.topk(pred[0][idx], prediction_number)
+        losses = first_predicted.values
+        indices = first_predicted.indices
+        idx_found_sequences = indices[indices == end_token_idx]
+        found_sequences = idx_found_sequences.sum()
+        if found_sequences >= prediction_number:
+            break
+        #predicted_word = c_vectorizer.caption_vocab._idx_to_token[]
+        pass
 def reminder_rnn_size():
     rnn_layer = 1
     feature_size = 30
