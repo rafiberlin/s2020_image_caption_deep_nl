@@ -12,6 +12,8 @@
       10,
       100
    ],
+   "hidden_dim_rnn": 100,
+   "hidden_dim_cnn": 100,
    "device": "cuda:0",
    "rounding": 6,
    "use_glove": false,

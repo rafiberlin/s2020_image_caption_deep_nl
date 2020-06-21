@@ -22,9 +22,6 @@ import preprocessing as prep
 HYPER_PARAMETER_CONFIG = "hparams.json"
 REPORT_EVERY = 5
 EMBEDDING_DIM = 60
-HIDDEN_DIM = 20
-HIDDEN_DIM_CNN = 100
-HIDDEN_DIM_RNN = 100
 BATCH_SIZE = 150
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
@@ -40,6 +37,7 @@ def main():
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
     embedding = None
     c_vectorizer = None
+    vocabulary_size = 0
 
     if hparams["use_glove"]:
         ## TODO: pass embedding to model and reshape lstm input/output accordingly
@@ -48,20 +46,21 @@ def main():
         glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
         c_vectorizer = model.GloVeVectorizer.from_dataframe(glove_model, cleaned_captions)
 
-        # Load torch weights
-        glove_weights = torch.FloatTensor(glove_model.vectors)
-
         # Add additional weights for sequence markers
-        glove_add = torch.FloatTensor(np.random.normal(scale=0.6, size=(4, glove_model.vector_size)))
-        glove_weights = torch.cat((glove_weights, glove_add))
+        glove_add = np.random.normal(scale=0.6, size=(4, glove_model.vector_size))
+        glove_weights = np.concatenate((glove_model.vectors, glove_add))
 
-        embedding = nn.Embedding.from_pretrained(glove_weights)
-        #embedding.weight.requires_grad = False
+        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_weights))
+        embedding.weight.requires_grad = False
 
         print("GloVe embedding size:", glove_model.vector_size)
         print("GloVe num embeddings:", len(glove_model.vocab))
+        print("GloVe final weights shape:", glove_weights.shape)
+
+        vocabulary_size = len(c_vectorizer.get_target_vocab())
     else:
         c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
+        vocabulary_size = len(c_vectorizer.get_vocab())
 
     #padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
     image_dir = os.path.join(hparams['root'], hparams['train'])
@@ -89,8 +88,6 @@ def main():
     batch_size = hparams["batch_size"][0]
     train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
 
-    vocabulary_size = len(c_vectorizer.get_vocab())
-
     ## Generate output folder if non-existent
     model_dir = hparams["model_storage"]
     if not os.path.isdir(model_dir):
@@ -102,7 +99,7 @@ def main():
     print("Model save path:", model_path)
 
     ## Training start
-    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx=None, pretrained_embeddings=embedding).to(device)
+    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], padding_idx=None, pretrained_embeddings=embedding).to(device)
     #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
     if os.path.isfile(model_path):

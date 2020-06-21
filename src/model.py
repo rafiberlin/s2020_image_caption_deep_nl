@@ -80,13 +80,16 @@ class LSTMModel(nn.Module):
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
         # ImageToHiddenState
-        self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
 
         if pretrained_embeddings:
+            # TODO HACK: improve this constructor api
             self.embeddings = pretrained_embeddings
+            self.embedding_dim = pretrained_embeddings.embedding_dim
         else:
             self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
                                 embedding_dim=self.embedding_dim, padding_idx=padding_idx)
+
+        self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
 
@@ -384,7 +387,10 @@ class GloVeVectorizer:
             self.glove2default[glove_idx] = idx
 
     def get_vocab(self):
-        return self.glove_vectorizer.get_vocab()
+        return self.glove_vocab
+
+    def get_target_vocab(self):
+        return self.default_vocab
 
     def vectorize(self, title):
         # Maps the output sequence from glove encoding to default index encoding
