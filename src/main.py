@@ -38,19 +38,23 @@ def main():
         device = "cpu"
 
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
-    c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
-    padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
     embedding = None
+    c_vectorizer = None
 
     if hparams["use_glove"]:
-        ## TODO: pass embedding to model
         print("Loading glove vectors...")
         glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
         glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
+        c_vectorizer = model.GloVeVectorizer.from_dataframe(glove_model, cleaned_captions)
+
+        ## TODO: pass embedding to model and reshape lstm input/output accordingly
         glove_weights = torch.FloatTensor(glove_model.vectors)
         embedding = nn.Embedding.from_pretrained(glove_weights)
         embedding.weight.requires_grad = False
+    else:
+        c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
 
+    padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
     image_dir = os.path.join(hparams['root'], hparams['train'])
 
     caption_file_path = prep.get_cleaned_captions_path(hparams, hparams['train'])
@@ -76,7 +80,7 @@ def main():
     batch_size = hparams["batch_size"][0]
     train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
 
-    vocabulary_size = len(c_vectorizer.caption_vocab)
+    vocabulary_size = len(c_vectorizer.get_vocab())
 
     ## Generate output folder if non-existent
     model_dir = hparams["model_storage"]
