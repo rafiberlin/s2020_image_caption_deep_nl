@@ -31,22 +31,17 @@ BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
 IMAGE_SIZE = 320
 
-
 def main():
     hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
     device = hparams["device"]
     if not torch.cuda.is_available():
         device = "cpu"
-    #TODO create_list_of_captions_and_clean is buggy. It should create 2 files on the first run:
-    # cleaned_captions_train2017.json and cleaned_captions_train2017_label_only.json
-    # cleaned_captions_train2017.json is the file to load in the Coco api with meta data and cleaned captions.
-    # cleaned_captions_train2017_label_only.json is not a json file, it s only a list of all captions, to speed up  the vectorizer...
-    #cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
-    cleaned_captions =  prep.read_json_config("../data/annotations/cleaned_captions_train2017_label_only.json")
+
+    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
-    words = c_vectorizer.caption_vocab._token_to_idx.keys()
     embedding = None
+
     if hparams["use_glove"]:
         ## TODO: pass embedding to model
         print("Loading glove vectors...")
@@ -73,8 +68,8 @@ def main():
                                         transform=transforms.Compose([prep.CenteringPad(),
                                                                       transforms.Resize((640, 640)),
                                                                       # transforms.CenterCrop(IMAGE_SIZE),
-                                                                      transforms.ToTensor(),
-                                                                      transforms.Normalize(rgb_mean, rgb_sd)])
+                                                                      transforms.ToTensor()])
+                                                                      #transforms.Normalize(rgb_mean, rgb_sd)])
                                         )
 
     coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)

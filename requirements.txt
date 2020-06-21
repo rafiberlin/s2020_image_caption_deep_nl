@@ -19,6 +19,4 @@ torch == 1.5.0
 # sose2020_image_caption_deep_learning/src/preprocessing.py: 2,5,6
 torchvision == 0.6.0
 
-git+git://github.com/philferriere/cocoapi.git@master#egg=pycocotools&subdirectory=PythonAPI
-git+git:+https://github.com/salaniz/pycocoevalcap.git@master
-
+git+https://github.com/salaniz/pycocoevalcap
