@@ -89,11 +89,9 @@ class LSTMModel(nn.Module):
                                 embedding_dim=self.embedding_dim, padding_idx=padding_idx)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
-    
+
     def forward(self, inputs):
         # WRITE CODE HERE
-
-
 
         imgs, labels = inputs
         current_device = str(imgs.device)

@@ -42,19 +42,28 @@ def main():
     c_vectorizer = None
 
     if hparams["use_glove"]:
+        ## TODO: pass embedding to model and reshape lstm input/output accordingly
         print("Loading glove vectors...")
         glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
         glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
         c_vectorizer = model.GloVeVectorizer.from_dataframe(glove_model, cleaned_captions)
 
-        ## TODO: pass embedding to model and reshape lstm input/output accordingly
+        # Load torch weights
         glove_weights = torch.FloatTensor(glove_model.vectors)
+
+        # Add additional weights for sequence markers
+        glove_add = torch.FloatTensor(np.random.normal(scale=0.6, size=(4, glove_model.vector_size)))
+        glove_weights = torch.cat((glove_weights, glove_add))
+
         embedding = nn.Embedding.from_pretrained(glove_weights)
-        embedding.weight.requires_grad = False
+        #embedding.weight.requires_grad = False
+
+        print("GloVe embedding size:", glove_model.vector_size)
+        print("GloVe num embeddings:", len(glove_model.vocab))
     else:
         c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
 
-    padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
+    #padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
     image_dir = os.path.join(hparams['root'], hparams['train'])
 
     caption_file_path = prep.get_cleaned_captions_path(hparams, hparams['train'])
