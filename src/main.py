@@ -134,7 +134,7 @@ def main():
         torch.save(network.state_dict(), model_path)
 
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
-    #print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
+    print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
     test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
 
 def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
@@ -187,7 +187,7 @@ def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions
     scores = calc_scores(ref, hyp)
     print("Our Score:", scores)
 
-def print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+def print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions):
     #TODO Model predicts kind of weird stuff. Changin the init state of the LSTM cell
     # to the image and increasing the embedding size helped, but we need to observe that...
     # Moreover, argmax is not the best => we should sample the words from the prob distribution implied by
