@@ -1,4 +1,5 @@
 .idea
+src/__pycache__
 
 #as the dataset is huge, we don't want to commit it
 /data

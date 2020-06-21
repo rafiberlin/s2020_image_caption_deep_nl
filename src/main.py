@@ -9,83 +9,63 @@ import torch.optim as optim
 import numpy as np
 from collections import OrderedDict
 from timeit import default_timer as timer
+import gensim
 # own modules
 import model
-import preprocessing
+import preprocessing as prep
 
-
-def get_hyper_parameters():
-    device = get_device()
-    parameters = OrderedDict([("lr", [0.01, 0.001]),
-                              ("batch_size", [10, 100, 100]),
-                              ("shuffle", [True, False]),
-                              ("epochs", [10, 100]),
-                              ("device", device)
-                              ])
-    return parameters
-
-
-def get_device():
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    else:
-        device = "cpu"
-    return device
-
-
-def get_dataset_file_args():
-    file_args = {"train": {"img": "./data/train2017", "inst": "./data/annotations/instances_train2017.json",
-                           "capt": "./data/annotations/captions_train2017.json"},
-                 "val": {"img": "./data/val2017", "inst": "./data/annotations/instances_val2017.json",
-                         "capt": "./data/annotations/captions_val2017.json"}
-                 }
-    return file_args
-
-
-DATASET_FILE_PATHS_CONFIG = "./dataset_file_args.json"
-HYPER_PARAMETER_CONFIG = "./hyper_parameters.json"
-N_EPOCHS = 120
-LEARNING_RATE = 0.01
+HYPER_PARAMETER_CONFIG = "hparams.json"
 REPORT_EVERY = 5
 EMBEDDING_DIM = 60
 HIDDEN_DIM = 20
 HIDDEN_DIM_CNN = 100
 HIDDEN_DIM_RNN = 100
 BATCH_SIZE = 150
-N_LAYERS = 1
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
 IMAGE_SIZE = 320
-USE_PRETRAINED_EMBEDDINGS = False
+
 
 def main():
-    file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
-    hyper_parameters = preprocessing.read_json_config(HYPER_PARAMETER_CONFIG)
-    device = hyper_parameters["device"]
+    hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
+    device = hparams["device"]
     if not torch.cuda.is_available():
         device = "cpu"
-
-    cleaned_captions = preprocessing.create_list_of_captions_and_clean(file_args["train"]["annotation_dir"],
-                                                                       file_args["train"]["capt"])
+    #TODO create_list_of_captions_and_clean is buggy. It should create 2 files on the first run:
+    # cleaned_captions_train2017.json and cleaned_captions_train2017_label_only.json
+    # cleaned_captions_train2017.json is the file to load in the Coco api with meta data and cleaned captions.
+    # cleaned_captions_train2017_label_only.json is not a json file, it s only a list of all captions, to speed up  the vectorizer...
+    #cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
+    cleaned_captions =  prep.read_json_config("../data/annotations/cleaned_captions_train2017_label_only.json")
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
     words = c_vectorizer.caption_vocab._token_to_idx.keys()
-    c_vectorizer.caption_vocab
-    embeddings = None
-    if USE_PRETRAINED_EMBEDDINGS:
-        embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
-                                             words=words, outputsize=EMBEDDING_DIM)
-    image_dir = file_args["train"]["img"]
-    caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
-    rgb_stats = preprocessing.read_json_config(file_args["rgb_stats"])
-    stats_rounding = hyper_parameters["rounding"]
+    embedding = None
+    if hparams["use_glove"]:
+        ## TODO: pass embedding to model
+        print("Loading glove vectors...")
+        glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
+        glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
+        glove_weights = torch.FloatTensor(glove_model.vectors)
+        embedding = nn.Embedding.from_pretrained(glove_weights)
+        embedding.weight.requires_grad = False
+
+    image_dir = os.path.join(hparams['root'], hparams['train'])
+
+    caption_file_path = prep.get_cleaned_captions_path(hparams, hparams['train'])
+    print("Image dir:", image_dir)
+    print("Caption file path:", caption_file_path)
+
+    #rgb_stats = prep.read_json_config(hparams["rgb_stats"])
+    stats_rounding = hparams["rounding"]
+    rgb_stats ={"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
     rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
     rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
     # TODO create a testing split, there is only training and val currently...
     coco_train_set = dset.CocoDetection(root=image_dir,
                                         annFile=caption_file_path,
-                                        transform=transforms.Compose([preprocessing.CenteringPad(),
+                                        transform=transforms.Compose([prep.CenteringPad(),
                                                                       transforms.Resize((640, 640)),
                                                                       # transforms.CenterCrop(IMAGE_SIZE),
                                                                       transforms.ToTensor(),
@@ -93,12 +73,23 @@ def main():
                                         )
 
     coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
-    batch_size = hyper_parameters["batch_size"][0]
+    batch_size = hparams["batch_size"][0]
     train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
 
     vocabulary_size = len(c_vectorizer.caption_vocab)
-    model_path = file_args["model_storage_dir"]
-    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx=None, pretrained_embeddings=embeddings).to(device)
+
+    ## Generate output folder if non-existent
+    model_dir = hparams["model_storage"]
+    if not os.path.isdir(model_dir):
+        try:
+            os.mkdir(model_dir)
+        except OSError:
+            print(f"Creation of the directory {model_dir} failed")
+    model_path = os.path.join(model_dir, hparams["model_name"])
+    print("Model save path:", model_path)
+
+    ## Training start
+    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx=None, pretrained_embeddings=embedding).to(device)
     #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
     if os.path.isfile(model_path):
@@ -110,17 +101,17 @@ def main():
     batch_one = next(iter(train_loader))
     if start_training:
         loss_function = nn.NLLLoss().to(device)
-        optimizer = optim.Adam(params=network.parameters(), lr=LEARNING_RATE)
+        optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
         start = timer()
         # --- training loop ---
         torch.cuda.empty_cache()
         network.train()
         total_loss = 0
-        for epoch in range(N_EPOCHS):
+        for epoch in range(hparams["num_epochs"]):
             # TODO build a bigger loop...
             images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
 
-            network.zero_grad()
+            optimizer.zero_grad()
             # flatten all caption , flatten all batch and sequences, to make its category comparable
             # for the loss function
             out_captions = out_captions.reshape(-1)
@@ -136,7 +127,6 @@ def main():
         end = timer()
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
-
 
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
 
@@ -156,6 +146,7 @@ def main():
                 break
             if l == PADDING_WORD:
                 break
+        print("##################################\n")
         print("predicted label", " ".join(label))
         for c_idx in range(5):
             label.clear()

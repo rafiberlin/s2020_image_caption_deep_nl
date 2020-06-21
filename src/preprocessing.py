@@ -9,23 +9,15 @@ import numbers
 import os
 import model,main
 from nltk.tokenize import word_tokenize
+from tqdm import tqdm
 
 def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
         json.dump(params, json_file)
 
-
 def read_json_config(file_path):
-    '''
-
-    :param file_path:
-    :return:
-    '''
-    #data = json.load(open(file_path), object_pairs_hook=OrderedDict)
-    data = json.load(open(file_path))
-    return data
-
-
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
 class ImageSizeStats(object):
     """
@@ -48,7 +40,6 @@ class ImageSizeStats(object):
         return self.c.most_common(n)
     def least_common(self, n=1):
         return self.c.most_common()[-n]
-
 
     def __calculate_avg_image_size(self):
         set_size = len(self.dataset)
@@ -153,11 +144,6 @@ def preprocess_text(text):
     text = " ".join(text)
     return text
 
-
-
-
-
-
 class CenteringPad(object):
     """
     Pad class to deal with varying sizes. Strategy for all images which does not have the max resolution of the
@@ -206,7 +192,7 @@ class CenteringPad(object):
         return self.__class__.__name__ + f'(padding={0}, fill={1}, padding_mode={2})'. \
             format(self.padding, self.fill, self.padding_mode)
 
-def create_list_of_captions_and_clean(caption_dir, file_name, save_file_path=None):
+def create_list_of_captions_and_clean(hparams, name):
     """
     Given a caption json file for the COCO dataset, lower case the labels
     and add space before and after punctuation, Preprocessing function from
@@ -216,31 +202,30 @@ def create_list_of_captions_and_clean(caption_dir, file_name, save_file_path=Non
     :return:
     """
 
-    file_path = os.path.join(caption_dir, file_name)
-    if not file_name.startswith("cleaned_"):
-        cleaned_file_path = os.path.join(caption_dir, "cleaned_"+file_name)
-        if save_file_path is None:
-            # transforms captions_train2017.json to cleaned_captions_train2017_label_only.json
-            save_file_path = os.path.join(caption_dir, "cleaned_" + "_label_only.".join(file_name.split(".")))
-    else:
-        cleaned_file_path = os.path.join(caption_dir, file_name)
-        if save_file_path is None:
-            # transforms captions_train2017.json to cleaned_captions_train2017_label_only.json
-            save_file_path = os.path.join(caption_dir, "_label_only.".join(file_name.split(".")))
+    caption_dir = os.path.join(hparams['root'],"annotations")
+    file_path = get_captions_path(hparams, hparams[name])
+    save_file_path = os.path.join(caption_dir, f"cleaned_captions_{hparams[name]}.json")
 
-    captions = read_json_config(file_path)
-    caption_file = Path(save_file_path)
-    if not caption_file.is_file():
-        cleaned_captions = []
-        for idx, caption in enumerate(captions["annotations"]):
-            cleaned_caption = preprocess_text(caption["caption"])
-            cleaned_captions.append(cleaned_caption)
-            captions["annotations"][idx]["caption"] = cleaned_caption
-        create_json_config(cleaned_captions, save_file_path, 0)
-        create_json_config(captions, cleaned_file_path, 0)
-    else:
-        cleaned_captions = read_json_config(save_file_path)
-    return cleaned_captions
+    with open(file_path, "r") as f:
+        captions = json.load(f)
+        caption_file = Path(save_file_path)
+        if not caption_file.is_file():
+            print("Cleaning captions...")
+            cleaned_captions = []
+            for idx, caption in enumerate(tqdm(captions["annotations"])):
+                cleaned_caption = preprocess_text(caption["caption"])
+                cleaned_captions.append(cleaned_caption)
+                captions["annotations"][idx]["caption"] = cleaned_caption
+
+            with open(save_file_path, "w") as f:
+                json.dump(cleaned_captions, f)
+
+            return cleaned_captions
+        else:
+            print("Reading pre-cleaned captions...")
+            return json.load(open(file_path))
+            #with open(save_file_path, "r") as f:
+            #    return json.load(f)
 
 def clean_caption_annotations(annotation_dir, annotation_list):
     for annotation in annotation_list:
@@ -263,6 +248,11 @@ if __name__ == '__main__':
     clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
 
 
+def get_captions_path(hparams, dataset):
+    return f"{hparams['root']}/annotations/captions_{dataset}.json"
 
+def get_cleaned_captions_path(hparams, dataset):
+    return f"{hparams['root']}/annotations/cleaned_captions_{dataset}.json"
 
-
+def get_instance_path(hparams, dataset):
+    return f"{hparams['root']}/annotations/instances_{dataset}.json"
