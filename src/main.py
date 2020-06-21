@@ -11,6 +11,11 @@ from collections import OrderedDict
 from timeit import default_timer as timer
 import gensim
 # own modules
+from pycocoevalcap.bleu.bleu import Bleu
+from pycocoevalcap.cider.cider import Cider
+from pycocoevalcap.meteor.meteor import Meteor
+from pycocoevalcap.rouge.rouge import Rouge
+
 import model
 import preprocessing as prep
 
@@ -129,7 +134,60 @@ def main():
         torch.save(network.state_dict(), model_path)
 
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
+    #print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
+    test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
 
+def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+    """
+    Demonstrates of the eval API is working.
+    :param c_vectorizer:
+    :param network:
+    :param batch_size:
+    :param device:
+    :param images:
+    :param in_captions:
+    :param batch_one:
+    :return:
+    """
+
+    hyp = {}
+    ref = {}
+    for idx in range(batch_size):
+        starting_token = c_vectorizer.create_starting_sequence().to(device)
+        input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+        predicted_label = predict_greedy(network, input_for_prediction, device)
+        label = []
+        for c in predicted_label[0][0]:
+            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+            if l != END_WORD and l != BEGIN_WORD:
+                label.append(l)
+            if l == END_WORD:
+                break
+            if l == PADDING_WORD:
+                break
+        h = " ".join(label)
+        for c_idx in range(5):
+            label.clear()
+            for c in in_captions[idx][c_idx]:
+                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                if l != END_WORD and l != BEGIN_WORD and l != PADDING_WORD:
+                    label.append(l)
+                if l == END_WORD:
+                    break
+                if l == PADDING_WORD:
+                    break
+            r = " ".join(label)
+            id = batch_one[1][c_idx]["id"][idx]
+            ref[id]=[r]
+            hyp[id] = [h]
+
+    scores = calc_scores(ref, ref)
+    print("Best Possible Score:", scores)
+
+    scores = calc_scores(ref, hyp)
+    print("Our Score:", scores)
+
+def print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
     #TODO Model predicts kind of weird stuff. Changin the init state of the LSTM cell
     # to the image and increasing the embedding size helped, but we need to observe that...
     # Moreover, argmax is not the best => we should sample the words from the prob distribution implied by
@@ -141,23 +199,49 @@ def main():
         label = []
         for c in predicted_label[0][0]:
             l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
-            label.append(l)
+            if l != END_WORD and l != BEGIN_WORD:
+                label.append(l)
             if l == END_WORD:
                 break
             if l == PADDING_WORD:
                 break
         print("##################################\n")
-        print("predicted label", " ".join(label))
+        print("predicted label:", " ".join(label))
         for c_idx in range(5):
             label.clear()
             for c in in_captions[idx][c_idx]:
                 l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
-                label.append(l)
+                if l != END_WORD and l != BEGIN_WORD:
+                    label.append(l)
                 if l == END_WORD:
                     break
                 if l == PADDING_WORD:
                     break
-            print("real label", " ".join(label))
+            print("real label:", " ".join(label))
+
+
+
+def calc_scores(ref, hypo):
+
+    """
+    Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
+    ref, dictionary of reference sentences (id, sentence)
+    hypo, dictionary of hypothesis sentences (id, sentence)
+    score, dictionary of scores
+    """
+    scorers = [
+        (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
+    ]
+    final_scores = {}
+    for scorer, method in scorers:
+        score, scores = scorer.compute_score(ref, hypo)
+        if type(score) == list:
+            for m, s in zip(method, score):
+                final_scores[m] = s
+        else:
+            final_scores[method] = score
+    return final_scores
+
 
 
 def predict_greedy(model, input_for_prediction, device, prediction_number= 1, found_sequences = 0, end_token_idx= 3):
