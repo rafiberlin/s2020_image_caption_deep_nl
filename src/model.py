@@ -66,8 +66,9 @@ class LSTMModel(nn.Module):
                  character_set_size,
                  hidden_dim_rnn,
                  hidden_dim_cnn,
-                 padding_idx,
+                 padding_idx=None,
                  rnn_layers=1,
+                 pretrained_embeddings=None
                  ):
         super(LSTMModel, self).__init__()
         self.embedding_dim = embedding_dim
@@ -81,8 +82,7 @@ class LSTMModel(nn.Module):
         # ImageToHiddenState
         self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
         self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
-                                embedding_dim=self.embedding_dim)
-
+                                embedding_dim=self.embedding_dim, _weight=pretrained_embeddings, padding_idx=padding_idx)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
 
@@ -247,7 +247,7 @@ def load_glove_from_file(glove_filepath):
     return word_to_index, np.stack(embeddings)
 
 
-def make_embedding_matrix(glove_filepath, words):
+def make_embedding_matrix(glove_filepath, words, outputsize = 60):
     """
     Create embedding matrix for a specific set of words.
 
@@ -267,8 +267,10 @@ def make_embedding_matrix(glove_filepath, words):
             embedding_i = torch.ones(1, embedding_size)
             torch.nn.init.xavier_uniform_(embedding_i)
             final_embeddings[i, :] = embedding_i
+    if outputsize < embedding_size:
+        final_embeddings = final_embeddings[:, :outputsize]
 
-    return final_embeddings
+    return torch.from_numpy(final_embeddings).float()
 
 class CocoDatasetWrapper(Dataset):
 

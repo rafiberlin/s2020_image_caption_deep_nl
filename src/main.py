@@ -57,7 +57,7 @@ PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
 IMAGE_SIZE = 320
-
+USE_PRETRAINED_EMBEDDINGS = False
 
 def main():
     file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
@@ -70,9 +70,12 @@ def main():
                                                                        file_args["train"]["capt"])
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
-    # embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
-    #                                         words=words)
-
+    words = c_vectorizer.caption_vocab._token_to_idx.keys()
+    c_vectorizer.caption_vocab
+    embeddings = None
+    if USE_PRETRAINED_EMBEDDINGS:
+        embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
+                                             words=words, outputsize=EMBEDDING_DIM)
     image_dir = file_args["train"]["img"]
     caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
     rgb_stats = preprocessing.read_json_config(file_args["rgb_stats"])
@@ -95,7 +98,8 @@ def main():
 
     vocabulary_size = len(c_vectorizer.caption_vocab)
     model_path = file_args["model_storage_dir"]
-    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx).to(device)
+    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx=None, pretrained_embeddings=embeddings).to(device)
+    #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
     if os.path.isfile(model_path):
         network.load_state_dict(torch.load(model_path))
@@ -122,7 +126,7 @@ def main():
             out_captions = out_captions.reshape(-1)
             log_prediction = network((images, in_captions)).reshape(out_captions.shape[0], -1)
             # Warning if we are unable to learn, use the contiguus function of the tensor
-            # it insures that the sequnce is not messed up during reshape
+            # it insures that the sequence is not messed up during reshape
             loss = loss_function(log_prediction, out_captions)
             loss.backward()
             print("Loss:", loss.item())
@@ -185,7 +189,6 @@ def predict_greedy(model, input_for_prediction, device, prediction_number= 1, fo
         vectorized_seq[0][0][idx+1] = indices[0]
         input_for_prediction = (image, vectorized_seq)
         if found_sequences > 0:
-            print("prediction has stopped early")
             break
     return vectorized_seq
 
