@@ -68,8 +68,8 @@ def main():
                                         transform=transforms.Compose([prep.CenteringPad(),
                                                                       transforms.Resize((640, 640)),
                                                                       # transforms.CenterCrop(IMAGE_SIZE),
-                                                                      transforms.ToTensor()])
-                                                                      #transforms.Normalize(rgb_mean, rgb_sd)])
+                                                                      transforms.ToTensor(),
+                                                                      transforms.Normalize(rgb_mean, rgb_sd)])
                                         )
 
     coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
