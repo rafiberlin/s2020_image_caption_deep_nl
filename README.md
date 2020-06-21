@@ -1,6 +1,6 @@
 ## Installing
 
-* Download the [COCO dataset] and place it into the data directory.
+* Download the [COCO dataset](http://cocodataset.org/#download) and place it into the data directory.
 * Download [GloVe Vectors](http://nlp.stanford.edu/data/glove.6B.zip)
 
 ```
