@@ -5,9 +5,15 @@ import torch.nn.functional as F
 import numpy as np
 from collections import  Counter
 import string
+
+from pycocoevalcap.cider.cider import Cider
+from pycocoevalcap.rouge.rouge import Rouge
+from pycocoevalcap.spice.spice import Spice
 from torch.utils.data import Dataset
 import pandas as pd
-
+from pycocoevalcap.eval import COCOEvalCap
+from pycocoevalcap.bleu.bleu import Bleu
+from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -68,7 +74,8 @@ class LSTMModel(nn.Module):
                  hidden_dim_cnn,
                  padding_idx=None,
                  rnn_layers=1,
-                 pretrained_embeddings=None
+                 pretrained_embeddings=None,
+                 drop_out_prob=0.2
                  ):
         super(LSTMModel, self).__init__()
         self.embedding_dim = embedding_dim
@@ -92,6 +99,7 @@ class LSTMModel(nn.Module):
         self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
+        self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, inputs):
         # WRITE CODE HERE
@@ -119,7 +127,8 @@ class LSTMModel(nn.Module):
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
         # the second entry the first hidden state
-        classes = self.linear(lstm_out)
+        classes = self.linear(self.drop_layer(lstm_out))
+
         # squeeze make out.shape to batch_size times num_classes
         out = F.log_softmax(classes, dim=2)
         return out
@@ -263,6 +272,52 @@ class CocoDatasetWrapper(Dataset):
                 vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
         return image, captions, (vectorized_captions_in,vectorized_captions_out)
 
+class CocoEvalBleuOnly(COCOEvalCap):
+    def evaluate(self):
+        imgIds = self.params['image_id']
+        # imgIds = self.coco.getImgIds()
+        gts = {}
+        res = {}
+        for imgId in imgIds:
+            gts[imgId] = self.coco.imgToAnns[imgId]
+            res[imgId] = self.cocoRes.imgToAnns[imgId]
+
+        # =================================================
+        # Set up scorers
+        # =================================================
+        print('tokenization...')
+        tokenizer = PTBTokenizer()
+        gts  = tokenizer.tokenize(gts)
+        res = tokenizer.tokenize(res)
+
+        # =================================================
+        # Set up scorers
+        # =================================================
+        print('setting up scorers...')
+        scorers = [
+            (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
+            (Rouge(), "ROUGE_L"),
+            (Cider(), "CIDEr")
+        ]
+
+        # =================================================
+        # Compute scores
+        # =================================================
+        for scorer, method in scorers:
+            print('computing %s score...'%(scorer.method()))
+            score, scores = scorer.compute_score(gts, res)
+            if type(method) == list:
+                for sc, scs, m in zip(score, scores, method):
+                    self.setEval(sc, m)
+                    self.setImgToEvalImgs(scs, gts.keys(), m)
+                    print("%s: %0.3f"%(m, sc))
+            else:
+                self.setEval(score, method)
+                self.setImgToEvalImgs(scores, gts.keys(), method)
+                print("%s: %0.3f"%(method, score))
+        self.setEvalImgs()
+
+
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
 
@@ -272,6 +327,17 @@ class CaptionVectorizer(object):
 
     def get_vocab(self):
         return self.caption_vocab
+
+    def decode(self, vectorized_input):
+        """
+        Pytorch array with list of indices
+        :param vectorized_input:
+        :return:
+        """
+        return " ".join([self.caption_vocab._idx_to_token[i.item()] for i in vectorized_input
+                if i.item() not in
+                [self.caption_vocab.begin_seq_index, self.caption_vocab.mask_index, self.caption_vocab.end_seq_index]
+                ])
 
     def vectorize(self, title):
         """
