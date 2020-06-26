@@ -28,7 +28,9 @@ tqdm == 4.45.0
 
 funcy == 1.14
 
+cython == 0.29.14
 pycocotools
+
 
 # sose2020_image_caption_deep_learning/src/main.py: 14,15,16,17
 pycocoevalcap == 1.1

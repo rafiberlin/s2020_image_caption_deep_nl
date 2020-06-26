@@ -22,6 +22,7 @@ torchvision == 0.6.0
 tqdm == 4.45.0
 
 funcy == 1.14
+cython == 0.29.14
 
 git+git://github.com/philferriere/cocoapi.git@master#egg=pycocotools&subdirectory=PythonAPI
 git+https://github.com/salaniz/pycocoevalcap
