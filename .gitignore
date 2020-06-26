@@ -2,12 +2,15 @@
 src/__pycache__
 
 #as the dataset is huge, we don't want to commit it
-/data
+/data/train2017
+/data/val2017
+/data/glove
+/data/_
+#exclude the original annotations
+/data/annotations/captions*.json
 
 #for now exclude model_storage
-/model_storage
-#exclude the cleaned  captions to reduce github repo size
-cleaned_captions.json
+#/model_storage
 
 test*.py
 #exclude tensorboard outputs.

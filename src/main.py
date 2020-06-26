@@ -19,7 +19,7 @@ from pycocoevalcap.rouge.rouge import Rouge
 import model
 import preprocessing as prep
 
-HYPER_PARAMETER_CONFIG = "hparams.json"
+HYPER_PARAMETER_CONFIG = "../hparams.json"
 REPORT_EVERY = 5
 EMBEDDING_DIM = 60
 BATCH_SIZE = 150

@@ -17,14 +17,17 @@
    "device": "cuda:0",
    "rounding": 6,
    "use_glove": false,
-   "root": "data",
-   "train": "train2014",
+   "root": "../data",
+   "train": "train2017",
    "val": "val2017",
    "test": "test2017",
    "glove_embedding": "glove.6B.100d.bin.word2vec",
    "rgb_stats": "rgb_stats.json",
-   "model_storage": "model_storage",
+   "model_storage": "../model_storage",
    "model_name": "network.pt",
    "num_epochs": 300,
-   "lr": 0.01
+   "lr": 0.01,
+   "img_train_url": "http://images.cocodataset.org/zips/train2017.zip",
+   "img_val_url": "http://images.cocodataset.org/zips/val2017.zip",
+   "annotation_url": "http://images.cocodataset.org/annotations/annotations_trainval2017.zip"
 }
