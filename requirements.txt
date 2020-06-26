@@ -27,7 +27,7 @@ torchvision == 0.6.0
 tqdm == 4.45.0
 
 funcy == 1.14
-
+scikit-learn == 0.22.1
 cython == 0.29.14
 pycocotools
 
