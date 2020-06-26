@@ -195,7 +195,7 @@ class CenteringPad(object):
         return padding
 
     def __repr__(self):
-        return self.__class__.__name__ + f'(padding={0}, fill={1}, padding_mode={2})'.format(self.padding, self.fill, self.padding_mode)
+        return self.__class__.__name__ + f"(padding={0}, fill={1}, padding_mode={2})".format(self.padding, self.fill, self.padding_mode)
 
 def create_list_of_captions_and_clean(hparams, name):
     """
