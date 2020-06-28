@@ -20,6 +20,7 @@ import pandas as pd
 from itertools import combinations
 import model
 import preprocessing as prep
+import argparse
 
 HYPER_PARAMETER_CONFIG = "hparams.json"
 EMBEDDING_DIM = 60
@@ -29,7 +30,16 @@ END_WORD = "<END>"
 IMAGE_SIZE = 320
 
 def main():
-    hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-p", "--params", help="hparams config file")
+    parser.add_argument("--train", action="store_true", help="force training")
+    args = parser.parse_args()
+
+    if args.params:
+        hparams = prep.read_json_config(args.params)
+    else:
+        hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
+
     device = hparams["device"]
     if not torch.cuda.is_available():
         device = "cpu"
@@ -100,7 +110,7 @@ def main():
     network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], padding_idx=None, pretrained_embeddings=embedding, cnn_model=hparams["cnn_model"]).to(device)
     #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
-    if os.path.isfile(model_path):
+    if os.path.isfile(model_path) and not args.train:
         network.load_state_dict(torch.load(model_path))
         start_training = False
         print("Skip Training")
