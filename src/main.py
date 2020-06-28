@@ -12,10 +12,12 @@ from timeit import default_timer as timer
 import gensim
 # own modules
 from pycocoevalcap.bleu.bleu import Bleu
+from pycocotools.coco import COCO
 from pycocoevalcap.cider.cider import Cider
 from pycocoevalcap.meteor.meteor import Meteor
 from pycocoevalcap.rouge.rouge import Rouge
-
+import pandas as pd
+from itertools import combinations
 import model
 import preprocessing as prep
 
@@ -135,8 +137,111 @@ def main():
         torch.save(network.state_dict(), model_path)
 
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
-    print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
-    test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    create_coco_eval_frame(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    """
+    from pycocoevalcap.eval import COCOEvalCap
+    coco_cap = COCO(caption_file_path)
+    res = create_coco_eval_frame(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    imgIds = sorted([ batch_one[1][0]["image_id"][i].item() for i in range(batch_size)])
+    prep.create_json_config(res, "./res.json", 0)
+    coco_res = coco_cap.loadRes("./res.json")
+    cocoEval = model.CocoEvalBleuOnly(coco_cap, coco_res)
+    cocoEval.params['image_id'] = imgIds
+    s = cocoEval.evaluate()
+    labs = get_original_label(batch_one, batch_size)
+    for i, l in enumerate(labs):
+        print("ref", i)
+        prep.create_json_config(labs[i], f"./ref_{i}.json")
+        eval = model.CocoEvalBleuOnly(coco_cap, coco_cap.loadRes(f"./ref_{i}.json"))
+        eval.params['image_id'] = imgIds
+        eval.evaluate()
+    pass
+    """
+    labs = get_original_label(batch_one, batch_size)
+    #print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
+    #test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    #score_list = calculate_ref_score_for_bleu(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    #print(score_list)
+
+def create_coco_eval_frame(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+    """
+    Demonstrates of the eval API is working.
+    :param c_vectorizer:
+    :param network:
+    :param batch_size:
+    :param device:
+    :param images:
+    :param in_captions:
+    :param batch_one:
+    :return:
+    """
+
+    total_captions = 5
+    score_list = []
+    for idx in range(batch_size):
+        starting_token = c_vectorizer.create_starting_sequence().to(device)
+        input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+        predicted_label = predict_greedy(network, input_for_prediction, device)
+        current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
+        id = batch_one[1][0]["image_id"][idx].item()
+        score_list.append({"image_id": id, "caption": current_hypothesis})
+
+    return score_list
+
+def get_original_label(batch_one, batch_size):
+    total_captions = 5
+    ref = None
+    ref_list = [ref] * total_captions
+    for idx in range(total_captions):
+        ref_list[idx] = [{"image_id": id.item(), "caption": batch_one[1][idx]["caption"][i]} for i, id in enumerate(batch_one[1][idx]["image_id"]) ]
+
+    return ref_list
+
+def get_original_label(batch_one, batch_size):
+    total_captions = 5
+    ref = None
+    ref_list = [ref] * total_captions
+    for idx in range(total_captions):
+        id = batch_one[1][idx]["id"][0].item()
+        caption = batch_one[1][idx]["caption"][0]
+    return ref_list
+
+def calculate_ref_score_for_bleu(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+    """
+    Demonstrates of the eval API is working.
+    :param c_vectorizer:
+    :param network:
+    :param batch_size:
+    :param device:
+    :param images:
+    :param in_captions:
+    :param batch_one:
+    :return:
+    """
+
+    total_captions = 5
+    hyp = []
+    ref = []
+    hyp_list = [hyp] * total_captions
+    ref_list = [ref] * total_captions
+    score_list = []
+    for idx in range(batch_size):
+        label = []
+        label_range = range(total_captions)
+        for c_idx in label_range:
+            label.clear()
+            current_hypothesis = c_vectorizer.decode(in_captions[idx][c_idx])
+            list_ref = []
+            for c_idx_ref in label_range:
+                if c_idx_ref != c_idx:
+                    current_ref = c_vectorizer.decode(in_captions[idx][c_idx_ref])
+                    list_ref.append(current_ref)
+            id = batch_one[1][0]["id"][idx]
+            ref_list[c_idx][id].append({"image_id": id, "caption": current_hypothesis})
+
+
+    df_score = pd.DataFrame(score_list)
+    return df_score
 
 def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
     """
@@ -159,7 +264,7 @@ def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions
         predicted_label = predict_greedy(network, input_for_prediction, device)
         label = []
         for c in predicted_label[0][0]:
-            l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
+            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
             if l != END_WORD and l != BEGIN_WORD:
                 label.append(l)
             if l == END_WORD:
@@ -170,7 +275,7 @@ def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions
         for c_idx in range(5):
             label.clear()
             for c in in_captions[idx][c_idx]:
-                l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
+                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
                 if l != END_WORD and l != BEGIN_WORD and l != PADDING_WORD:
                     label.append(l)
                 if l == END_WORD:
@@ -199,7 +304,7 @@ def print_some_predictions(c_vectorizer, network, batch_size, device, images, in
         predicted_label = predict_greedy(network, input_for_prediction, device)
         label = []
         for c in predicted_label[0][0]:
-            l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
+            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
             if l != END_WORD and l != BEGIN_WORD:
                 label.append(l)
             if l == END_WORD:
@@ -211,8 +316,8 @@ def print_some_predictions(c_vectorizer, network, batch_size, device, images, in
         for c_idx in range(5):
             label.clear()
             for c in in_captions[idx][c_idx]:
-                l = c_vectorizer.get_vocab()._idx_to_token[c.item()]
-                if l != END_WORD and l != BEGIN_WORD:
+                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                if l != END_WORD and l != BEGIN_WORD and l != PADDING_WORD:
                     label.append(l)
                 if l == END_WORD:
                     break
@@ -305,4 +410,24 @@ def reminder_rnn_size():
 
 if __name__ == '__main__':
     main()
-    # reminder_rnn_size()
+
+    hypothesis = 'that is a meal'
+
+    ref = ['closeup of bins of food that include broccoli and bread',
+    'a meal is presented in brightly colored plastic trays',
+    'there are containers filled with different kinds of foods',
+    'colorful dishes holding meat vegetables fruit and bread',
+    'a bunch of trays that have different food']
+
+    comb = combinations(ref, 4)
+    for c in list(comb):
+        for r in ref:
+            if r not in c:
+                h = {}
+                rr = {}
+                for i, e in enumerate (c):
+                    h[i]=[r]
+                    rr[i]=[e]
+                calc_scores(rr, h)
+
+        # reminder_rnn_size()

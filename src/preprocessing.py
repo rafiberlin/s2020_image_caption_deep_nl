@@ -1,15 +1,21 @@
+from argparse import Namespace
 from collections import  Counter
 import torchvision.datasets as dset
-import json
 from pathlib import Path
 from torchvision.transforms.functional import pad
 from torchvision import transforms
 import torch
 import numbers
 import os
-import model,main
+import main
 from nltk.tokenize import word_tokenize
 from tqdm import tqdm
+import json
+import argparse
+import funcy
+from sklearn.model_selection import train_test_split
+from urllib.request import urlopen
+from zipfile import ZipFile
 
 def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
@@ -189,8 +195,7 @@ class CenteringPad(object):
         return padding
 
     def __repr__(self):
-        return self.__class__.__name__ + f'(padding={0}, fill={1}, padding_mode={2})'. \
-            format(self.padding, self.fill, self.padding_mode)
+        return self.__class__.__name__ + f"(padding={0}, fill={1}, padding_mode={2})".format(self.padding, self.fill, self.padding_mode)
 
 def create_list_of_captions_and_clean(hparams, name):
     """
@@ -205,11 +210,11 @@ def create_list_of_captions_and_clean(hparams, name):
     caption_dir = os.path.join(hparams['root'],"annotations")
     file_path = get_captions_path(hparams, hparams[name])
     save_file_path = os.path.join(caption_dir, f"cleaned_captions_{hparams[name]}.json")
-
-    with open(file_path, "r") as f:
-        captions = json.load(f)
-        caption_file = Path(save_file_path)
-        if not caption_file.is_file():
+    caption_file = Path(save_file_path)
+    #If the cleaned version does not exist, create it
+    if not caption_file.is_file():
+        with open(file_path, "r") as f:
+            captions = json.load(f)
             print("Cleaning captions...")
             cleaned_captions = []
             for idx, caption in enumerate(tqdm(captions["annotations"])):
@@ -221,14 +226,14 @@ def create_list_of_captions_and_clean(hparams, name):
                 json.dump(captions, f)
 
             return cleaned_captions
-        else:
-            print("Reading pre-cleaned captions...")
-            with open(save_file_path, "r") as f:
-                captions = json.load(f)
-                cleaned_captions = []
-                for caption in tqdm(captions["annotations"]):
-                    cleaned_captions.append(caption["caption"])
-                return cleaned_captions
+    else:
+        print("Reading pre-cleaned captions...")
+        with open(save_file_path, "r") as f:
+            captions = json.load(f)
+            cleaned_captions = []
+            for caption in tqdm(captions["annotations"]):
+                cleaned_captions.append(caption["caption"])
+            return cleaned_captions
 
 def clean_caption_annotations(annotation_dir, annotation_list):
     for annotation in annotation_list:
@@ -247,10 +252,6 @@ def calculate_rgb_stats():
     rgb_means = iss.get_RGB_mean_sd()
     create_json_config(rgb_means, "rgb_stats.json")
 
-if __name__ == '__main__':
-    clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
-
-
 def get_captions_path(hparams, dataset):
     return f"{hparams['root']}/annotations/captions_{dataset}.json"
 
@@ -259,3 +260,81 @@ def get_cleaned_captions_path(hparams, dataset):
 
 def get_instance_path(hparams, dataset):
     return f"{hparams['root']}/annotations/instances_{dataset}.json"
+
+def save_coco(file, info, licenses, images, annotations):
+    with open(file, 'wt', encoding='UTF-8') as coco:
+        json.dump({ 'info': info, 'licenses': licenses, 'images': images,
+            'annotations': annotations}, coco, sort_keys=True)
+
+def filter_annotations(annotations, images):
+    image_ids = funcy.lmap(lambda i: int(i['id']), images)
+    return funcy.lfilter(lambda a: int(a['image_id']) in image_ids, annotations)
+
+def create_cocosplit(args):
+    """
+    #Downloaded from github.com/akarazniewicz/cocosplit.git@master and modified to just handle annotations
+    :param args:
+    :return:
+    """
+    with open(args.annotations, 'rt', encoding='UTF-8') as annotations:
+        coco = json.load(annotations)
+        info = coco['info']
+        licenses = coco['licenses']
+        images = coco['images']
+        annotations = coco['annotations']
+
+        number_of_images = len(images)
+
+        images_with_annotations = funcy.lmap(lambda a: int(a['image_id']), annotations)
+
+        if args.having_annotations:
+            images = funcy.lremove(lambda i: i['id'] not in images_with_annotations, images)
+
+        x, y = train_test_split(images, train_size=args.split, shuffle=True)
+
+        save_coco(args.train, info, licenses, x, filter_annotations(annotations, x))
+        save_coco(args.test, info, licenses, y, filter_annotations(annotations, y))
+
+
+        print("Saved {} entries in {} and {} in {}".format(len(x), args.train, len(y), args.test))
+
+
+
+def download_images(zipurl, storage_directory):
+    """
+    From https://svaderia.github.io/articles/downloading-and-unzipping-a-zipfile/
+    download the COCO images and put them under /data
+    :param zipurl:
+    :param storage_directory:
+    :return:
+    """
+    zipresp = urlopen(zipurl)
+    # Create a new file on the hard drive
+    temp_path = os.path.join(storage_directory, "tempfile.zip")
+    tempzip = open(temp_path, "wb")
+        # Write the contents of the downloaded file into the new file
+    tempzip.write(zipresp.read())
+    tempzip.close()
+    zf = ZipFile(temp_path)
+    # Extract its contents into <extraction_path>
+    # note that extractall will automatically create the path
+    zf.extractall(path=storage_directory)
+    # close the ZipFile instance
+    zf.close()
+    os.remove(temp_path)
+
+
+if __name__ == '__main__':
+    # Because the original test labels are missing in the Coco dataset (remember, it was meant as a competition)
+    # we need to split the traning dataset into training and testing 80% / 20%
+    hparams = read_json_config("./hparams.json")
+    #arg_for_split = Namespace(annotations='../data/annotations/captions_train2017.json', having_annotations=True, split=0.8,
+    #          test='../data/annotations/captions_test2017.json', train='../data/annotations/captions_train2017.json')
+    #create_cocosplit(arg_for_split)
+
+    #for example from captions_train2017.json we get cleaned_captions_train2017.json and cleaned_captions_train2017_labels_only.json
+    #clean_caption_annotations(hparams, ["train", "val", "test"])
+    #download_images("https://download.ccleaner.com/portable/ccsetup568.zip", "../data")
+    download_images(hparams["img_train_url"], "./data")
+    download_images(hparams["img_val_url"], "./data")
+

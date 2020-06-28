@@ -1,6 +1,10 @@
 ## Installing
 
-* Download the [COCO dataset](http://cocodataset.org/#download) and place it into the data directory.
+* Download the [COCO dataset images from 2017](http://cocodataset.org/#download) and place them into the data directory. The needed annotations are already included in this repository.
+
+```
+python3 src/preprocessing.py
+```
 * Download [GloVe Vectors](http://nlp.stanford.edu/data/glove.6B.zip)
 
 ```
