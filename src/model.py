@@ -158,8 +158,6 @@ class LSTMModel(nn.Module):
         self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, inputs):
-        # WRITE CODE HERE
-
         imgs, labels = inputs
         current_device = str(imgs.device)
         batch_size = len(imgs)

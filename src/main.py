@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import torch
 import torchvision.transforms as transforms
 import torch.utils.data
@@ -304,7 +305,7 @@ def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions
     print("Our Score:", scores)
 
 def print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions):
-    #TODO Model predicts kind of weird stuff. Changin the init state of the LSTM cell
+    #TODO Model predicts kind of weird stuff. Changing the init state of the LSTM cell
     # to the image and increasing the embedding size helped, but we need to observe that...
     # Moreover, argmax is not the best => we should sample the words from the prob distribution implied by
     # the predictions...
@@ -359,8 +360,14 @@ def calc_scores(ref, hypo):
     return final_scores
 
 def predict_beam(model, input_for_prediction, device, c_vectorizer, beam_width = 3, found_sequences = 0, end_token_idx= 3):
+    """
+    WIP implementation of beam search
+    """
+
     seq_len = input_for_prediction[1].shape[2]
     image, vectorized_seq = input_for_prediction
+
+    # TODO: quite memory consuming, maybe switch to numpy or delete unused tensors
 
     print("Input seq:", vectorized_seq.shape)
 
@@ -384,6 +391,7 @@ def predict_beam(model, input_for_prediction, device, c_vectorizer, beam_width =
     current_predictions = torch.zeros((beam_width * vocab_size))
 
     # For every sequence index consider all previous beam_width possibilities
+    # TODO: use whole sequence length, for now 10 for debugging purposes
     for idx in range(1, 10):
         for k in range(beam_width):
             i = track_best[0,k,idx-1]
@@ -417,6 +425,7 @@ def predict_beam(model, input_for_prediction, device, c_vectorizer, beam_width =
             
             print(idx, k_idx, c_vectorizer.get_vocab().lookup_index(word_idx.item()))
 
+    # TODO: sample track_best and check if new_predicted works correctly
     return vectorized_seq
 
 def predict_greedy(model, input_for_prediction, device, prediction_number= 1, found_sequences = 0, end_token_idx= 3):
@@ -444,7 +453,7 @@ def predict_greedy(model, input_for_prediction, device, prediction_number= 1, fo
 
 def predict(model, input_for_prediction, device, prediction_number= 3, found_sequences = 0, end_token_idx= 3):
     seq_len = input_for_prediction[1].shape[2]
-    # first dimension 0 keeps indices, 1 keeps probaility
+    # first dimension 0 keeps indices, 1 keeps probability
     track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
     model.eval()
     #TODO implement the whole sequence prediction using beam search...
