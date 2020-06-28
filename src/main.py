@@ -168,7 +168,7 @@ def main():
     pass
     """
     labs = get_original_label(batch_one, batch_size)
-    #print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
+    print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
     #test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
     #score_list = calculate_ref_score_for_bleu(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
     #print(score_list)
@@ -311,7 +311,7 @@ def print_some_predictions(c_vectorizer, network, batch_size, device, images, in
     for idx in range(batch_size):
         starting_token = c_vectorizer.create_starting_sequence().to(device)
         input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
-        predicted_label = predict_greedy(network, input_for_prediction, device)
+        predicted_label = predict_beam(network, input_for_prediction, device, c_vectorizer)
         label = []
         for c in predicted_label[0][0]:
             l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
@@ -358,7 +358,66 @@ def calc_scores(ref, hypo):
             final_scores[method] = score
     return final_scores
 
+def predict_beam(model, input_for_prediction, device, c_vectorizer, beam_width = 3, found_sequences = 0, end_token_idx= 3):
+    seq_len = input_for_prediction[1].shape[2]
+    image, vectorized_seq = input_for_prediction
 
+    print("Input seq:", vectorized_seq.shape)
+
+    # first dimension 0 keeps indices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
+    track_best = torch.zeros((3, beam_width, seq_len)).to(device)
+    model.eval()
+
+    # Do first prediction, store #beam_width best
+    pred = model(input_for_prediction)
+    first_predicted = torch.topk(pred[0][0], beam_width)
+    for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
+        track_best[0,i,0] = index.item()
+        track_best[1,i,0] = log_prob
+        track_best[2,i,0] = -1
+
+        print(c_vectorizer.get_vocab().lookup_index(index.item()))
+
+    print("First:", first_predicted)        
+
+    vocab_size = len(c_vectorizer.get_vocab())
+    current_predictions = torch.zeros((beam_width * vocab_size))
+
+    # For every sequence index consider all previous beam_width possibilities
+    for idx in range(1, 10):
+        for k in range(beam_width):
+            i = track_best[0,k,idx-1]
+            p = track_best[1,k,idx-1]
+
+            # Build new sequence with previous index
+            new_seq = vectorized_seq.detach().clone()
+            new_seq[0][0][idx] = i
+
+            # Predict new indices and rank beam_width best
+            new_input = (image, new_seq)
+            new_prediction = model(new_input)[0][idx] + p
+
+            del new_seq
+
+            # Store prediction
+            current_predictions[k*vocab_size:(k+1)*vocab_size] = new_prediction[:]
+
+        # Rank all predictions
+        new_predicted = torch.topk(current_predictions, beam_width)
+
+        # Find topk across all beam_width * vocab_size predictions
+        for i, (log_prob, index) in enumerate(zip(new_predicted.values, new_predicted.indices)):
+            # Find the correct word
+            k_idx = index // vocab_size
+            word_idx = index % vocab_size
+            
+            track_best[0,i,idx] = word_idx
+            track_best[1,i,idx] = log_prob
+            track_best[2,i,idx] = k_idx
+            
+            print(idx, k_idx, c_vectorizer.get_vocab().lookup_index(word_idx.item()))
+
+    return vectorized_seq
 
 def predict_greedy(model, input_for_prediction, device, prediction_number= 1, found_sequences = 0, end_token_idx= 3):
     seq_len = input_for_prediction[1].shape[2]
