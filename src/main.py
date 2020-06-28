@@ -34,12 +34,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--params", help="hparams config file")
     parser.add_argument("--train", action="store_true", help="force training")
+    parser.add_argument("--download", action="store_true", help="download dataset")
     args = parser.parse_args()
 
     if args.params:
         hparams = prep.read_json_config(args.params)
     else:
         hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
+
+    if args.download:
+        prep.download_images(hparams["img_train_url"], "./data")
+        prep.download_images(hparams["img_val_url"], "./data")
 
     device = hparams["device"]
     if not torch.cuda.is_available():
