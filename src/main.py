@@ -20,9 +20,7 @@ import model
 import preprocessing as prep
 
 HYPER_PARAMETER_CONFIG = "hparams.json"
-REPORT_EVERY = 5
 EMBEDDING_DIM = 60
-BATCH_SIZE = 150
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
@@ -36,31 +34,29 @@ def main():
 
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
     embedding = None
-    c_vectorizer = None
-    vocabulary_size = 0
+    c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
+    vocabulary_size = len(c_vectorizer.get_vocab())
 
     if hparams["use_glove"]:
-        ## TODO: pass embedding to model and reshape lstm input/output accordingly
         print("Loading glove vectors...")
         glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
         glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
-        c_vectorizer = model.GloVeVectorizer.from_dataframe(glove_model, cleaned_captions)
 
-        # Add additional weights for sequence markers
-        glove_add = np.random.normal(scale=0.6, size=(4, glove_model.vector_size))
-        glove_weights = np.concatenate((glove_model.vectors, glove_add))
+        glove_embedding = np.random.rand(vocabulary_size, glove_model.vector_size)
 
-        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_weights))
+        token2idx = {}
+        for word in glove_model.vocab.keys():
+            token2idx[word] = glove_model.vocab[word].index
+
+        for word in c_vectorizer.get_vocab()._token_to_idx.keys():
+            i = c_vectorizer.get_vocab().lookup_token(word)
+            if word in token2idx:
+                glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
+
+        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_embedding))
         embedding.weight.requires_grad = False
-
         print("GloVe embedding size:", glove_model.vector_size)
-        print("GloVe num embeddings:", len(glove_model.vocab))
-        print("GloVe final weights shape:", glove_weights.shape)
-
-        vocabulary_size = len(c_vectorizer.get_target_vocab())
-    else:
-        c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
-        vocabulary_size = len(c_vectorizer.get_vocab())
+        
 
     #padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
     image_dir = os.path.join(hparams['root'], hparams['train'])

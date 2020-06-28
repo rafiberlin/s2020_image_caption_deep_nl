@@ -358,57 +358,6 @@ def generate_batches(dataset, batch_size, shuffle=True,
             out_data_dict[name] = data_dict[name].to(device)
         yield out_data_dict
 
-class GloVeVectorizer:
-    def __init__(self, glove_model, c_vectorizer):
-        self.glove_model = glove_model
-        self.c_vectorizer = c_vectorizer
-        self.max_sequence_length = c_vectorizer.max_sequence_length
-
-        # Convert tokens into glove indices
-        # token -> glove index -> glove vector
-        token2idx = {}
-        for word in self.glove_model.vocab.keys():
-            token2idx[word] = self.glove_model.vocab[word].index
-
-        self.glove_vocab = SequenceVocabulary(token2idx)
-        self.default_vocab = self.c_vectorizer.get_vocab()
-        self.glove_vectorizer = CaptionVectorizer(self.glove_vocab, c_vectorizer.max_sequence_length)
-
-        # Create translation index from glove to default index encoding
-        self.glove2default = {}
-        
-        # Translate glove to default
-        for token in self.glove_vocab._token_to_idx.keys():
-            idx = self.default_vocab.unk_index
-            if token in self.default_vocab._token_to_idx:
-                idx = self.default_vocab.lookup_token(token)
-            
-            glove_idx = self.glove_vocab.lookup_token(token)
-            self.glove2default[glove_idx] = idx
-
-    def get_vocab(self):
-        return self.glove_vocab
-
-    def get_target_vocab(self):
-        return self.default_vocab
-
-    def vectorize(self, title):
-        # Maps the output sequence from glove encoding to default index encoding
-        x_vector, y_vector = self.glove_vectorizer.vectorize(title)
-
-        #print(y_vector)
-        y_vector = np.vectorize(self.glove2default.__getitem__)(y_vector)
-        #print(y_vector)
-        return x_vector, y_vector
-
-    def create_starting_sequence(self):
-        return self.glove_vectorizer.create_starting_sequence()
-
-    @classmethod
-    def from_dataframe(cls, glove_model, captions):
-        c_vectorizer = CaptionVectorizer.from_dataframe(captions)
-        return cls(glove_model, c_vectorizer)
-
 class SequenceVocabulary(Vocabulary):
     def __init__(self, token_to_idx=None, unk_token="<UNK>",
                  mask_token="<MASK>", begin_seq_token="<BEGIN>",
