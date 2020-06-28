@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import numpy as np
 from collections import  Counter
 import string
+import torchvision.models as models
 
 from pycocoevalcap.cider.cider import Cider
 from pycocoevalcap.rouge.rouge import Rouge
@@ -42,6 +43,51 @@ class ImageToHiddenState(nn.Module):
 
         return t
 
+class VGG16Module(nn.Module):
+    """
+
+    Uses a conv layer to scale from 640x640x3 down to 230x230x3
+    Passes that image a modified VGG16
+    VGG16 outputs a linear layer with output_dim features
+
+    """
+
+    def __init__(self, output_dim):
+        super().__init__()
+        self.vgg16 = models.vgg16(pretrained=True)
+        self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=182, stride=2)
+        self.linear = nn.Linear(4096, output_dim)
+
+        # Remove last four layers of vgg16
+        self.vgg16.classifier = nn.Sequential(*list(self.vgg16.classifier.children())[:-4])
+
+    def forward(self, img):
+        y = self.conv(img)
+        with torch.no_grad():
+            y = self.vgg16(y)
+        y = self.linear(y)
+        return y
+
+class MobileNetModule(nn.Module):
+    """
+
+    Uses a conv layer to scale from 640x640x3 down to 256x256x3
+    Mobilenet outputs a linear layer with output_dim features
+
+    """
+
+    def __init__(self, output_dim):
+        super().__init__()
+        self.mobile = models.mobilenet_v2(pretrained=True)
+        self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=130, stride=2)
+        self.linear = nn.Linear(1000, output_dim)
+
+    def forward(self, img):
+        y = self.conv(img)
+        with torch.no_grad():
+            y = self.mobile(y)
+        y = self.linear(y)
+        return y
 
 class LSTMModel(nn.Module):
 
@@ -75,6 +121,7 @@ class LSTMModel(nn.Module):
                  padding_idx=None,
                  rnn_layers=1,
                  pretrained_embeddings=None,
+                 cnn_model=None,
                  drop_out_prob=0.2
                  ):
         super(LSTMModel, self).__init__()
@@ -96,7 +143,16 @@ class LSTMModel(nn.Module):
             self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
                                 embedding_dim=self.embedding_dim, padding_idx=padding_idx)
 
-        self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
+        if cnn_model == "vgg16":
+            print("Using vgg16...")
+            self.image_cnn = VGG16Module(hidden_dim_cnn)
+        elif cnn_model == "mobilenet":
+            print("Using mobilenet...")
+            self.image_cnn = MobileNetModule(hidden_dim_cnn)
+        else:
+            print("Using default cnn...")
+            self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
+
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
         self.drop_layer = nn.Dropout(p=drop_out_prob)
