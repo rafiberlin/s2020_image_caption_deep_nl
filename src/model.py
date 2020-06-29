@@ -361,7 +361,7 @@ class BleuScorer(object):
         return pd_score
 
     @classmethod
-    def evaluate(self, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1):
+    def evaluate(self, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1, print_prediction=False):
         # there is no other mthod to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
@@ -369,15 +369,22 @@ class BleuScorer(object):
         for idx, current_batch in enumerate(train_loader):
             imgs, annotations, training_labels = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
+                _id = image_id.item()
                 starting_token = c_vectorizer.create_starting_sequence().to(device)
                 input_for_prediction = (imgs[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
                 #TODO plug the beam search prediction
                 predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
                 current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
-                hypothesis[image_id.item()] = [current_hypothesis]
+                hypothesis[_id] = [current_hypothesis]
                 # packs all 5 labels for one image with the corresponding image id
-                references[image_id.item()] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
+                references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
                                                range(5)]
+                if print:
+                    print("\n#########################")
+                    print("image", _id)
+                    print("prediction", hypothesis[_id])
+                    print("gold captions", references[_id])
+
             if idx == idx_break:
                 # useful for debugging
                 break

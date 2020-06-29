@@ -142,7 +142,7 @@ def main():
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
 
-    bleu_score = model.BleuScorer.evaluate(train_loader, network, c_vectorizer, idx_break=3)
+    bleu_score = model.BleuScorer.evaluate(train_loader, network, c_vectorizer, idx_break=3, print_prediction=True)
     print("Unweighted Current Bleu Scores", bleu_score)
     print("Weighted Current Bleu Scores", bleu_score.mean())
     bleu_score_human_average = model.BleuScorer.evaluate_gold(train_loader, idx_break=3)
