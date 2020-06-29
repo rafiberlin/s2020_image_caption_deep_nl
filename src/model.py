@@ -6,6 +6,7 @@ import numpy as np
 from collections import  Counter
 import string
 import torchvision.models as models
+from itertools import combinations
 
 from pycocoevalcap.cider.cider import Cider
 from pycocoevalcap.rouge.rouge import Rouge
@@ -324,52 +325,138 @@ class CocoDatasetWrapper(Dataset):
         for i, caption_reviewer in enumerate(captions):
                 c = self.vectorizer.vectorize(captions[i]["caption"])
                 vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
-        return image, captions, (vectorized_captions_in,vectorized_captions_out)
+        # only use 5 captions to be able to use faster vectorized operations
+        # avoid exceptions in the collate function in the fetch part of the dataloader
+        return image, captions[:5], (vectorized_captions_in[:5],vectorized_captions_out[:5])
 
-class CocoEvalBleuOnly(COCOEvalCap):
-    def evaluate(self):
-        imgIds = self.params['image_id']
-        # imgIds = self.coco.getImgIds()
-        gts = {}
-        res = {}
-        for imgId in imgIds:
-            gts[imgId] = self.coco.imgToAnns[imgId]
-            res[imgId] = self.cocoRes.imgToAnns[imgId]
+class BleuScorer(object):
 
-        # =================================================
-        # Set up scorers
-        # =================================================
-        print('tokenization...')
-        tokenizer = PTBTokenizer()
-        gts  = tokenizer.tokenize(gts)
-        res = tokenizer.tokenize(res)
+    @classmethod
+    def evaluate_gold(cls, train_loader, idx_break=-1):
 
-        # =================================================
-        # Set up scorers
-        # =================================================
-        print('setting up scorers...')
+        # NEVER do [{}]* 5!!!!
+        # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
+        hypothesis = [{} for _ in range(5)]
+        references = [{} for _ in range(5)]
+        for idx, current_batch in enumerate(train_loader):
+            imgs, \
+            annotations, training_labels = current_batch
+            for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
+                # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
+                # deterministic...
+                for c in list(combinations(range(5), 4)):
+                    for hypothesis_idx in range(5):
+                        if hypothesis_idx not in c:
+                            hypothesis[hypothesis_idx][image_id.item()] = [annotations[hypothesis_idx]["caption"][sample_idx]]
+                            references[hypothesis_idx][image_id.item()] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in list(c)]
+            if idx == idx_break:
+                # useful for debugging
+                break
+
+        scores = []
+        for reference, hypothesis in list(zip(references, hypothesis)):
+            scores.append(cls.calc_scores(reference, hypothesis))
+
+        pd_score = pd.DataFrame(scores).mean()
+        return pd_score
+
+    @classmethod
+    def evaluate(self, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1):
+        # there is no other mthod to retrieve the current device on a model...
+        device = next(network_model.parameters()).device
+        hypothesis = {}
+        references = {}
+        for idx, current_batch in enumerate(train_loader):
+            imgs, annotations, training_labels = current_batch
+            for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
+                starting_token = c_vectorizer.create_starting_sequence().to(device)
+                input_for_prediction = (imgs[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+                #TODO plug the beam search prediction
+                predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
+                current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
+                hypothesis[image_id.item()] = [current_hypothesis]
+                # packs all 5 labels for one image with the corresponding image id
+                references[image_id.item()] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
+                                               range(5)]
+            if idx == idx_break:
+                # useful for debugging
+                break
+        score = self.calc_scores(references, hypothesis)
+        pd_score = pd.DataFrame([score])
+
+        """
+        this code delivers the same results but we can't calculate a reasonable score on the 
+        predefined labels to compare against gold (we always get 100%...)
+        res looks like this : [{"image_id": 139, "caption": "a woman posing for the camera standing on skis"}, ... ]
+        from pycocoevalcap.eval import COCOEvalCap
+        coco_cap = COCO(caption_file_path)
+        #imgIds = sorted([ batch_one[1][0]["image_id"][i].item() for i in range(batch_size)])
+        imgIds = sorted([ id for id in hypothesis.keys()])
+        res = [ {"image_id": k, "caption": hypothesis[k][0]} for k in sorted(hypothesis.keys())]
+        prep.create_json_config(res, "./res_.json", 0)
+        coco_res = coco_cap.loadRes("./res_.json")
+        #CocoEvalBleuOnly is a copy Paste of the CocoEval class but where we only put BleuScorer...
+        cocoEval = model.CocoEvalBleuOnly(coco_cap, coco_res)
+        cocoEval.params['image_id'] = imgIds
+        s = cocoEval.evaluate()
+        """
+
+        return pd_score
+
+
+    def calc_scores(ref, hypo):
+
+        """
+        Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
+        ref, dictionary of reference sentences (id, sentence)
+        hypo, dictionary of hypothesis sentences (id, sentence)
+        score, dictionary of scores
+        """
         scorers = [
-            (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
-            (Rouge(), "ROUGE_L"),
-            (Cider(), "CIDEr")
+            (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"])
         ]
-
-        # =================================================
-        # Compute scores
-        # =================================================
+        final_scores = {}
         for scorer, method in scorers:
-            print('computing %s score...'%(scorer.method()))
-            score, scores = scorer.compute_score(gts, res)
-            if type(method) == list:
-                for sc, scs, m in zip(score, scores, method):
-                    self.setEval(sc, m)
-                    self.setImgToEvalImgs(scs, gts.keys(), m)
-                    print("%s: %0.3f"%(m, sc))
+            score, scores = scorer.compute_score(ref, hypo)
+            if type(score) == list:
+                for m, s in zip(method, score):
+                    final_scores[m] = s
             else:
-                self.setEval(score, method)
-                self.setImgToEvalImgs(scores, gts.keys(), method)
-                print("%s: %0.3f"%(method, score))
-        self.setEvalImgs()
+                final_scores[method] = score
+        return final_scores
+
+def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_number= 1, found_sequences = 0):
+    """
+    Only for dev purposes, allow us to get some outputs.
+    :param model:
+    :param input_for_prediction:
+    :param end_token_idx:
+    :param prediction_number:
+    :param found_sequences:
+    :return:
+    """
+    seq_len = input_for_prediction[1].shape[2]
+    device = next(model.parameters()).device
+    image, vectorized_seq = input_for_prediction
+    # first dimension 0 keeps indices, 1 keeps probaility
+    track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
+    model.eval()
+    #TODO implement the whole sequence prediction using beam search...
+    prediction_number = prediction_number - found_sequences
+    for idx in range(seq_len - 1):
+        pred = model(input_for_prediction)
+        first_predicted = torch.topk(pred[0][idx], prediction_number)
+        losses = first_predicted.values
+        indices = first_predicted.indices
+        idx_found_sequences = indices[indices == end_token_idx]
+        found_sequences = idx_found_sequences.sum()
+        vectorized_seq[0][0][idx+1] = indices[0]
+        input_for_prediction = (image, vectorized_seq)
+        if found_sequences > 0:
+            break
+    return vectorized_seq
+
+
 
 
 class CaptionVectorizer(object):
