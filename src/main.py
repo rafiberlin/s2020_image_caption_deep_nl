@@ -9,83 +9,77 @@ import torch.optim as optim
 import numpy as np
 from collections import OrderedDict
 from timeit import default_timer as timer
+import gensim
 # own modules
+from pycocoevalcap.bleu.bleu import Bleu
+from pycocotools.coco import COCO
+from pycocoevalcap.cider.cider import Cider
+from pycocoevalcap.meteor.meteor import Meteor
+from pycocoevalcap.rouge.rouge import Rouge
+import pandas as pd
+from itertools import combinations
 import model
-import preprocessing
+import preprocessing as prep
 
-
-def get_hyper_parameters():
-    device = get_device()
-    parameters = OrderedDict([("lr", [0.01, 0.001]),
-                              ("batch_size", [10, 100, 100]),
-                              ("shuffle", [True, False]),
-                              ("epochs", [10, 100]),
-                              ("device", device)
-                              ])
-    return parameters
-
-
-def get_device():
-    if torch.cuda.is_available():
-        device = "cuda:0"
-    else:
-        device = "cpu"
-    return device
-
-
-def get_dataset_file_args():
-    file_args = {"train": {"img": "./data/train2017", "inst": "./data/annotations/instances_train2017.json",
-                           "capt": "./data/annotations/captions_train2017.json"},
-                 "val": {"img": "./data/val2017", "inst": "./data/annotations/instances_val2017.json",
-                         "capt": "./data/annotations/captions_val2017.json"}
-                 }
-    return file_args
-
-
-DATASET_FILE_PATHS_CONFIG = "./dataset_file_args.json"
-HYPER_PARAMETER_CONFIG = "./hyper_parameters.json"
-N_EPOCHS = 120
-LEARNING_RATE = 0.01
+HYPER_PARAMETER_CONFIG = "./hparams.json"
 REPORT_EVERY = 5
 EMBEDDING_DIM = 60
-HIDDEN_DIM = 20
-HIDDEN_DIM_CNN = 100
-HIDDEN_DIM_RNN = 100
 BATCH_SIZE = 150
-N_LAYERS = 1
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
 IMAGE_SIZE = 320
-USE_PRETRAINED_EMBEDDINGS = False
 
 def main():
-    file_args = preprocessing.read_json_config(DATASET_FILE_PATHS_CONFIG)
-    hyper_parameters = preprocessing.read_json_config(HYPER_PARAMETER_CONFIG)
-    device = hyper_parameters["device"]
+    hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
+    device = hparams["device"]
     if not torch.cuda.is_available():
         device = "cpu"
 
-    cleaned_captions = preprocessing.create_list_of_captions_and_clean(file_args["train"]["annotation_dir"],
-                                                                       file_args["train"]["capt"])
-    c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
-    padding_idx = c_vectorizer.caption_vocab._token_to_idx[PADDING_WORD]
-    words = c_vectorizer.caption_vocab._token_to_idx.keys()
-    c_vectorizer.caption_vocab
-    embeddings = None
-    if USE_PRETRAINED_EMBEDDINGS:
-        embeddings = model.make_embedding_matrix(glove_filepath=file_args["embeddings"],
-                                             words=words, outputsize=EMBEDDING_DIM)
-    image_dir = file_args["train"]["img"]
-    caption_file_path = os.path.join(file_args["train"]["annotation_dir"], file_args["train"]["capt"])
-    rgb_stats = preprocessing.read_json_config(file_args["rgb_stats"])
-    stats_rounding = hyper_parameters["rounding"]
+    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
+    embedding = None
+    c_vectorizer = None
+    vocabulary_size = 0
+
+    if hparams["use_glove"]:
+        ## TODO: pass embedding to model and reshape lstm input/output accordingly
+        print("Loading glove vectors...")
+        glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
+        glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
+        c_vectorizer = model.GloVeVectorizer.from_dataframe(glove_model, cleaned_captions)
+
+        # Add additional weights for sequence markers
+        glove_add = np.random.normal(scale=0.6, size=(4, glove_model.vector_size))
+        glove_weights = np.concatenate((glove_model.vectors, glove_add))
+
+        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_weights))
+        embedding.weight.requires_grad = False
+
+        print("GloVe embedding size:", glove_model.vector_size)
+        print("GloVe num embeddings:", len(glove_model.vocab))
+        print("GloVe final weights shape:", glove_weights.shape)
+
+        vocabulary_size = len(c_vectorizer.get_target_vocab())
+    else:
+        c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
+        vocabulary_size = len(c_vectorizer.get_vocab())
+
+    #padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
+    image_dir = os.path.join(hparams['root'], hparams['train'])
+
+    caption_file_path = prep.get_cleaned_captions_path(hparams, hparams['train'])
+    print("Image dir:", image_dir)
+    print("Caption file path:", caption_file_path)
+
+    #rgb_stats = prep.read_json_config(hparams["rgb_stats"])
+    stats_rounding = hparams["rounding"]
+    rgb_stats ={"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
     rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
     rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
     # TODO create a testing split, there is only training and val currently...
     coco_train_set = dset.CocoDetection(root=image_dir,
                                         annFile=caption_file_path,
-                                        transform=transforms.Compose([preprocessing.CenteringPad(),
+                                        transform=transforms.Compose([prep.CenteringPad(),
                                                                       transforms.Resize((640, 640)),
                                                                       # transforms.CenterCrop(IMAGE_SIZE),
                                                                       transforms.ToTensor(),
@@ -93,12 +87,21 @@ def main():
                                         )
 
     coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
-    batch_size = hyper_parameters["batch_size"][0]
+    batch_size = hparams["batch_size"][0]
     train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
 
-    vocabulary_size = len(c_vectorizer.caption_vocab)
-    model_path = file_args["model_storage_dir"]
-    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, padding_idx=None, pretrained_embeddings=embeddings).to(device)
+    ## Generate output folder if non-existent
+    model_dir = hparams["model_storage"]
+    if not os.path.isdir(model_dir):
+        try:
+            os.mkdir(model_dir)
+        except OSError:
+            print(f"Creation of the directory {model_dir} failed")
+    model_path = os.path.join(model_dir, hparams["model_name"])
+    print("Model save path:", model_path)
+
+    ## Training start
+    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], padding_idx=None, pretrained_embeddings=embedding).to(device)
     #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
     if os.path.isfile(model_path):
@@ -110,17 +113,17 @@ def main():
     batch_one = next(iter(train_loader))
     if start_training:
         loss_function = nn.NLLLoss().to(device)
-        optimizer = optim.Adam(params=network.parameters(), lr=LEARNING_RATE)
+        optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
         start = timer()
         # --- training loop ---
         torch.cuda.empty_cache()
         network.train()
         total_loss = 0
-        for epoch in range(N_EPOCHS):
+        for epoch in range(hparams["num_epochs"]):
             # TODO build a bigger loop...
             images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
 
-            network.zero_grad()
+            optimizer.zero_grad()
             # flatten all caption , flatten all batch and sequences, to make its category comparable
             # for the loss function
             out_captions = out_captions.reshape(-1)
@@ -137,9 +140,164 @@ def main():
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
 
-
     images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
+    create_coco_eval_frame(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    """
+    from pycocoevalcap.eval import COCOEvalCap
+    coco_cap = COCO(caption_file_path)
+    res = create_coco_eval_frame(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    imgIds = sorted([ batch_one[1][0]["image_id"][i].item() for i in range(batch_size)])
+    prep.create_json_config(res, "./res.json", 0)
+    coco_res = coco_cap.loadRes("./res.json")
+    cocoEval = model.CocoEvalBleuOnly(coco_cap, coco_res)
+    cocoEval.params['image_id'] = imgIds
+    s = cocoEval.evaluate()
+    labs = get_original_label(batch_one, batch_size)
+    for i, l in enumerate(labs):
+        print("ref", i)
+        prep.create_json_config(labs[i], f"./ref_{i}.json")
+        eval = model.CocoEvalBleuOnly(coco_cap, coco_cap.loadRes(f"./ref_{i}.json"))
+        eval.params['image_id'] = imgIds
+        eval.evaluate()
+    pass
+    """
+    labs = get_original_label(batch_one, batch_size)
+    #print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions)
+    #test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    #score_list = calculate_ref_score_for_bleu(c_vectorizer, network, batch_size, device, images, in_captions, batch_one)
+    #print(score_list)
 
+def create_coco_eval_frame(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+    """
+    Demonstrates of the eval API is working.
+    :param c_vectorizer:
+    :param network:
+    :param batch_size:
+    :param device:
+    :param images:
+    :param in_captions:
+    :param batch_one:
+    :return:
+    """
+
+    total_captions = 5
+    score_list = []
+    for idx in range(batch_size):
+        starting_token = c_vectorizer.create_starting_sequence().to(device)
+        input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+        predicted_label = predict_greedy(network, input_for_prediction, device)
+        current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
+        id = batch_one[1][0]["image_id"][idx].item()
+        score_list.append({"image_id": id, "caption": current_hypothesis})
+
+    return score_list
+
+def get_original_label(batch_one, batch_size):
+    total_captions = 5
+    ref = None
+    ref_list = [ref] * total_captions
+    for idx in range(total_captions):
+        ref_list[idx] = [{"image_id": id.item(), "caption": batch_one[1][idx]["caption"][i]} for i, id in enumerate(batch_one[1][idx]["image_id"]) ]
+
+    return ref_list
+
+def get_original_label(batch_one, batch_size):
+    total_captions = 5
+    ref = None
+    ref_list = [ref] * total_captions
+    for idx in range(total_captions):
+        id = batch_one[1][idx]["id"][0].item()
+        caption = batch_one[1][idx]["caption"][0]
+    return ref_list
+
+def calculate_ref_score_for_bleu(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+    """
+    Demonstrates of the eval API is working.
+    :param c_vectorizer:
+    :param network:
+    :param batch_size:
+    :param device:
+    :param images:
+    :param in_captions:
+    :param batch_one:
+    :return:
+    """
+
+    total_captions = 5
+    hyp = []
+    ref = []
+    hyp_list = [hyp] * total_captions
+    ref_list = [ref] * total_captions
+    score_list = []
+    for idx in range(batch_size):
+        label = []
+        label_range = range(total_captions)
+        for c_idx in label_range:
+            label.clear()
+            current_hypothesis = c_vectorizer.decode(in_captions[idx][c_idx])
+            list_ref = []
+            for c_idx_ref in label_range:
+                if c_idx_ref != c_idx:
+                    current_ref = c_vectorizer.decode(in_captions[idx][c_idx_ref])
+                    list_ref.append(current_ref)
+            id = batch_one[1][0]["id"][idx]
+            ref_list[c_idx][id].append({"image_id": id, "caption": current_hypothesis})
+
+
+    df_score = pd.DataFrame(score_list)
+    return df_score
+
+def test_eval_api(c_vectorizer, network, batch_size, device, images, in_captions, batch_one):
+    """
+    Demonstrates of the eval API is working.
+    :param c_vectorizer:
+    :param network:
+    :param batch_size:
+    :param device:
+    :param images:
+    :param in_captions:
+    :param batch_one:
+    :return:
+    """
+
+    hyp = {}
+    ref = {}
+    for idx in range(batch_size):
+        starting_token = c_vectorizer.create_starting_sequence().to(device)
+        input_for_prediction = (images[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+        predicted_label = predict_greedy(network, input_for_prediction, device)
+        label = []
+        for c in predicted_label[0][0]:
+            l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+            if l != END_WORD and l != BEGIN_WORD:
+                label.append(l)
+            if l == END_WORD:
+                break
+            if l == PADDING_WORD:
+                break
+        h = " ".join(label)
+        for c_idx in range(5):
+            label.clear()
+            for c in in_captions[idx][c_idx]:
+                l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
+                if l != END_WORD and l != BEGIN_WORD and l != PADDING_WORD:
+                    label.append(l)
+                if l == END_WORD:
+                    break
+                if l == PADDING_WORD:
+                    break
+            r = " ".join(label)
+            id = batch_one[1][c_idx]["id"][idx]
+            ref[id]=[r]
+            hyp[id] = [h]
+
+    scores = calc_scores(ref, ref)
+    print("Best Possible Score:", scores)
+
+    scores = calc_scores(ref, hyp)
+    print("Our Score:", scores)
+
+def print_some_predictions(c_vectorizer, network, batch_size, device, images, in_captions):
     #TODO Model predicts kind of weird stuff. Changin the init state of the LSTM cell
     # to the image and increasing the embedding size helped, but we need to observe that...
     # Moreover, argmax is not the best => we should sample the words from the prob distribution implied by
@@ -151,22 +309,49 @@ def main():
         label = []
         for c in predicted_label[0][0]:
             l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
-            label.append(l)
+            if l != END_WORD and l != BEGIN_WORD:
+                label.append(l)
             if l == END_WORD:
                 break
             if l == PADDING_WORD:
                 break
-        print("predicted label", " ".join(label))
+        print("##################################\n")
+        print("predicted label:", " ".join(label))
         for c_idx in range(5):
             label.clear()
             for c in in_captions[idx][c_idx]:
                 l = c_vectorizer.caption_vocab._idx_to_token[c.item()]
-                label.append(l)
+                if l != END_WORD and l != BEGIN_WORD and l != PADDING_WORD:
+                    label.append(l)
                 if l == END_WORD:
                     break
                 if l == PADDING_WORD:
                     break
-            print("real label", " ".join(label))
+            print("real label:", " ".join(label))
+
+
+
+def calc_scores(ref, hypo):
+
+    """
+    Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
+    ref, dictionary of reference sentences (id, sentence)
+    hypo, dictionary of hypothesis sentences (id, sentence)
+    score, dictionary of scores
+    """
+    scorers = [
+        (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
+    ]
+    final_scores = {}
+    for scorer, method in scorers:
+        score, scores = scorer.compute_score(ref, hypo)
+        if type(score) == list:
+            for m, s in zip(method, score):
+                final_scores[m] = s
+        else:
+            final_scores[method] = score
+    return final_scores
+
 
 
 def predict_greedy(model, input_for_prediction, device, prediction_number= 1, found_sequences = 0, end_token_idx= 3):
@@ -208,7 +393,7 @@ def predict(model, input_for_prediction, device, prediction_number= 3, found_seq
         found_sequences = idx_found_sequences.sum()
         if found_sequences >= prediction_number:
             break
-        #predicted_word = c_vectorizer.caption_vocab._idx_to_token[]
+        #predicted_word = c_vectorizer.get_vocab()._idx_to_token[]
         pass
 def reminder_rnn_size():
     rnn_layer = 1
@@ -229,4 +414,24 @@ def reminder_rnn_size():
 
 if __name__ == '__main__':
     main()
-    # reminder_rnn_size()
+
+    hypothesis = 'that is a meal'
+
+    ref = ['closeup of bins of food that include broccoli and bread',
+    'a meal is presented in brightly colored plastic trays',
+    'there are containers filled with different kinds of foods',
+    'colorful dishes holding meat vegetables fruit and bread',
+    'a bunch of trays that have different food']
+
+    comb = combinations(ref, 4)
+    for c in list(comb):
+        for r in ref:
+            if r not in c:
+                h = {}
+                rr = {}
+                for i, e in enumerate (c):
+                    h[i]=[r]
+                    rr[i]=[e]
+                calc_scores(rr, h)
+
+        # reminder_rnn_size()

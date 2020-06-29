@@ -5,9 +5,15 @@ import torch.nn.functional as F
 import numpy as np
 from collections import  Counter
 import string
+
+from pycocoevalcap.cider.cider import Cider
+from pycocoevalcap.rouge.rouge import Rouge
+from pycocoevalcap.spice.spice import Spice
 from torch.utils.data import Dataset
 import pandas as pd
-
+from pycocoevalcap.eval import COCOEvalCap
+from pycocoevalcap.bleu.bleu import Bleu
+from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -68,7 +74,8 @@ class LSTMModel(nn.Module):
                  hidden_dim_cnn,
                  padding_idx=None,
                  rnn_layers=1,
-                 pretrained_embeddings=None
+                 pretrained_embeddings=None,
+                 drop_out_prob=0.2
                  ):
         super(LSTMModel, self).__init__()
         self.embedding_dim = embedding_dim
@@ -80,16 +87,22 @@ class LSTMModel(nn.Module):
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
         # ImageToHiddenState
+
+        if pretrained_embeddings:
+            # TODO HACK: improve this constructor api
+            self.embeddings = pretrained_embeddings
+            self.embedding_dim = pretrained_embeddings.embedding_dim
+        else:
+            self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
+                                embedding_dim=self.embedding_dim, padding_idx=padding_idx)
+
         self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
-        self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
-                                embedding_dim=self.embedding_dim, _weight=pretrained_embeddings, padding_idx=padding_idx)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
+        self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, inputs):
         # WRITE CODE HERE
-
-
 
         imgs, labels = inputs
         current_device = str(imgs.device)
@@ -114,7 +127,8 @@ class LSTMModel(nn.Module):
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
         # the second entry the first hidden state
-        classes = self.linear(lstm_out)
+        classes = self.linear(self.drop_layer(lstm_out))
+
         # squeeze make out.shape to batch_size times num_classes
         out = F.log_softmax(classes, dim=2)
         return out
@@ -224,54 +238,6 @@ class Vocabulary(object):
     def __len__(self):
         return len(self._token_to_idx)
 
-
-def load_glove_from_file(glove_filepath):
-    """
-    Load the GloVe embeddings
-
-    Args:
-        glove_filepath (str): path to the glove embeddings file
-    Returns:
-        word_to_index (dict), embeddings (numpy.ndarary)
-    """
-
-    word_to_index = {}
-    embeddings = []
-    #use utf 8 otherwise bug
-    with open(glove_filepath, "r",  encoding="utf8") as fp:
-        for index, line in enumerate(fp):
-            line = line.split(" ")  # each line: word num1 num2 ...
-            word_to_index[line[0]] = index  # word = line[0]
-            embedding_i = np.array([float(val) for val in line[1:]])
-            embeddings.append(embedding_i)
-    return word_to_index, np.stack(embeddings)
-
-
-def make_embedding_matrix(glove_filepath, words, outputsize = 60):
-    """
-    Create embedding matrix for a specific set of words.
-
-    Args:
-        glove_filepath (str): file path to the glove embeddigns
-        words (list): list of words in the dataset
-    """
-    word_to_idx, glove_embeddings = load_glove_from_file(glove_filepath)
-    embedding_size = glove_embeddings.shape[1]
-
-    final_embeddings = np.zeros((len(words), embedding_size))
-
-    for i, word in enumerate(words):
-        if word in word_to_idx:
-            final_embeddings[i, :] = glove_embeddings[word_to_idx[word]]
-        else:
-            embedding_i = torch.ones(1, embedding_size)
-            torch.nn.init.xavier_uniform_(embedding_i)
-            final_embeddings[i, :] = embedding_i
-    if outputsize < embedding_size:
-        final_embeddings = final_embeddings[:, :outputsize]
-
-    return torch.from_numpy(final_embeddings).float()
-
 class CocoDatasetWrapper(Dataset):
 
     #TODO impose fixed length of the longest caption when vectorizing and test batch retrieval
@@ -306,6 +272,52 @@ class CocoDatasetWrapper(Dataset):
                 vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
         return image, captions, (vectorized_captions_in,vectorized_captions_out)
 
+class CocoEvalBleuOnly(COCOEvalCap):
+    def evaluate(self):
+        imgIds = self.params['image_id']
+        # imgIds = self.coco.getImgIds()
+        gts = {}
+        res = {}
+        for imgId in imgIds:
+            gts[imgId] = self.coco.imgToAnns[imgId]
+            res[imgId] = self.cocoRes.imgToAnns[imgId]
+
+        # =================================================
+        # Set up scorers
+        # =================================================
+        print('tokenization...')
+        tokenizer = PTBTokenizer()
+        gts  = tokenizer.tokenize(gts)
+        res = tokenizer.tokenize(res)
+
+        # =================================================
+        # Set up scorers
+        # =================================================
+        print('setting up scorers...')
+        scorers = [
+            (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
+            (Rouge(), "ROUGE_L"),
+            (Cider(), "CIDEr")
+        ]
+
+        # =================================================
+        # Compute scores
+        # =================================================
+        for scorer, method in scorers:
+            print('computing %s score...'%(scorer.method()))
+            score, scores = scorer.compute_score(gts, res)
+            if type(method) == list:
+                for sc, scs, m in zip(score, scores, method):
+                    self.setEval(sc, m)
+                    self.setImgToEvalImgs(scs, gts.keys(), m)
+                    print("%s: %0.3f"%(m, sc))
+            else:
+                self.setEval(score, method)
+                self.setImgToEvalImgs(scores, gts.keys(), method)
+                print("%s: %0.3f"%(method, score))
+        self.setEvalImgs()
+
+
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
 
@@ -315,6 +327,17 @@ class CaptionVectorizer(object):
 
     def get_vocab(self):
         return self.caption_vocab
+
+    def decode(self, vectorized_input):
+        """
+        Pytorch array with list of indices
+        :param vectorized_input:
+        :return:
+        """
+        return " ".join([self.caption_vocab._idx_to_token[i.item()] for i in vectorized_input
+                if i.item() not in
+                [self.caption_vocab.begin_seq_index, self.caption_vocab.mask_index, self.caption_vocab.end_seq_index]
+                ])
 
     def vectorize(self, title):
         """
@@ -400,6 +423,57 @@ def generate_batches(dataset, batch_size, shuffle=True,
         for name, tensor in data_dict.items():
             out_data_dict[name] = data_dict[name].to(device)
         yield out_data_dict
+
+class GloVeVectorizer:
+    def __init__(self, glove_model, c_vectorizer):
+        self.glove_model = glove_model
+        self.c_vectorizer = c_vectorizer
+        self.max_sequence_length = c_vectorizer.max_sequence_length
+
+        # Convert tokens into glove indices
+        # token -> glove index -> glove vector
+        token2idx = {}
+        for word in self.glove_model.vocab.keys():
+            token2idx[word] = self.glove_model.vocab[word].index
+
+        self.glove_vocab = SequenceVocabulary(token2idx)
+        self.default_vocab = self.c_vectorizer.get_vocab()
+        self.glove_vectorizer = CaptionVectorizer(self.glove_vocab, c_vectorizer.max_sequence_length)
+
+        # Create translation index from glove to default index encoding
+        self.glove2default = {}
+        
+        # Translate glove to default
+        for token in self.glove_vocab._token_to_idx.keys():
+            idx = self.default_vocab.unk_index
+            if token in self.default_vocab._token_to_idx:
+                idx = self.default_vocab.lookup_token(token)
+            
+            glove_idx = self.glove_vocab.lookup_token(token)
+            self.glove2default[glove_idx] = idx
+
+    def get_vocab(self):
+        return self.glove_vocab
+
+    def get_target_vocab(self):
+        return self.default_vocab
+
+    def vectorize(self, title):
+        # Maps the output sequence from glove encoding to default index encoding
+        x_vector, y_vector = self.glove_vectorizer.vectorize(title)
+
+        #print(y_vector)
+        y_vector = np.vectorize(self.glove2default.__getitem__)(y_vector)
+        #print(y_vector)
+        return x_vector, y_vector
+
+    def create_starting_sequence(self):
+        return self.glove_vectorizer.create_starting_sequence()
+
+    @classmethod
+    def from_dataframe(cls, glove_model, captions):
+        c_vectorizer = CaptionVectorizer.from_dataframe(captions)
+        return cls(glove_model, c_vectorizer)
 
 class SequenceVocabulary(Vocabulary):
     def __init__(self, token_to_idx=None, unk_token="<UNK>",

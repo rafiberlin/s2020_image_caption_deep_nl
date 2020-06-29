@@ -1,0 +1,29 @@
+gensim == 3.8.3
+
+# sose2020_image_caption_deep_learning/src/preprocessing.py: 11
+nltk == 3.5
+
+# sose2020_image_caption_deep_learning/src/main.py: 9
+# sose2020_image_caption_deep_learning/src/model.py: 5
+numpy == 1.18.3
+
+# sose2020_image_caption_deep_learning/src/model.py: 9
+pandas == 1.0.3
+
+# sose2020_image_caption_deep_learning/src/main.py: 1,3,6,7,8
+# sose2020_image_caption_deep_learning/src/model.py: 1,2,3,4,8
+# sose2020_image_caption_deep_learning/src/preprocessing.py: 7
+torch == 1.5.0
+
+# sose2020_image_caption_deep_learning/src/main.py: 2,5
+# sose2020_image_caption_deep_learning/src/preprocessing.py: 2,5,6
+torchvision == 0.6.0
+
+tqdm == 4.45.0
+
+funcy == 1.14
+cython == 0.29.14
+scikit-learn == 0.22.1
+
+git+git://github.com/philferriere/cocoapi.git@master#egg=pycocotools&subdirectory=PythonAPI
+git+https://github.com/salaniz/pycocoevalcap
