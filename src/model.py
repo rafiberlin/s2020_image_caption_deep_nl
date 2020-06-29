@@ -432,6 +432,75 @@ class BleuScorer(object):
                 final_scores[method] = score
         return final_scores
 
+def predict_beam(model, input_for_prediction, device, c_vectorizer, beam_width = 3, found_sequences = 0, end_token_idx= 3):
+    """
+    WIP implementation of beam search
+    """
+
+    seq_len = input_for_prediction[1].shape[2]
+    image, vectorized_seq = input_for_prediction
+
+    # TODO: quite memory consuming, maybe switch to numpy or delete unused tensors
+
+    print("Input seq:", vectorized_seq.shape)
+
+    # first dimension 0 keeps indices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
+    track_best = torch.zeros((3, beam_width, seq_len)).to(device)
+    model.eval()
+
+    # Do first prediction, store #beam_width best
+    pred = model(input_for_prediction)
+    first_predicted = torch.topk(pred[0][0], beam_width)
+    for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
+        track_best[0,i,0] = index.item()
+        track_best[1,i,0] = log_prob
+        track_best[2,i,0] = -1
+
+        print(c_vectorizer.get_vocab().lookup_index(index.item()))
+
+    print("First:", first_predicted)        
+
+    vocab_size = len(c_vectorizer.get_vocab())
+    current_predictions = torch.zeros((beam_width * vocab_size))
+
+    # For every sequence index consider all previous beam_width possibilities
+    # TODO: use whole sequence length, for now 10 for debugging purposes
+    for idx in range(1, 10):
+        for k in range(beam_width):
+            i = track_best[0,k,idx-1]
+            p = track_best[1,k,idx-1]
+
+            # Build new sequence with previous index
+            new_seq = vectorized_seq.detach().clone()
+            new_seq[0][0][idx] = i
+
+            # Predict new indices and rank beam_width best
+            new_input = (image, new_seq)
+            new_prediction = model(new_input)[0][idx] + p
+
+            del new_seq
+
+            # Store prediction
+            current_predictions[k*vocab_size:(k+1)*vocab_size] = new_prediction[:]
+
+        # Rank all predictions
+        new_predicted = torch.topk(current_predictions, beam_width)
+
+        # Find topk across all beam_width * vocab_size predictions
+        for i, (log_prob, index) in enumerate(zip(new_predicted.values, new_predicted.indices)):
+            # Find the correct word
+            k_idx = index // vocab_size
+            word_idx = index % vocab_size
+            
+            track_best[0,i,idx] = word_idx
+            track_best[1,i,idx] = log_prob
+            track_best[2,i,idx] = k_idx
+            
+            print(idx, k_idx, c_vectorizer.get_vocab().lookup_index(word_idx.item()))
+
+    # TODO: sample track_best and check if new_predicted works correctly
+    return vectorized_seq
+
 def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_number= 1, found_sequences = 0):
     """
     Only for dev purposes, allow us to get some outputs.
