@@ -130,9 +130,9 @@ def main():
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
 
-    model.BleuScorer.perform_whole_evaluation(train_loader, network, c_vectorizer, break_training_loop_idx)
-    #model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_test_loop_idx)
-    #model.BleuScorer.perform_whole_evaluation(val_loader, network, c_vectorizer, break_val_loop_idx)
+    model.BleuScorer.perform_whole_evaluation(train_loader, network, c_vectorizer, break_training_loop_idx, hparams["print_prediction"])
+    #model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_test_loop_idx, hparams["print_prediction"])
+    #model.BleuScorer.perform_whole_evaluation(val_loader, network, c_vectorizer, break_val_loop_idx, hparams["print_prediction"])
 
 if __name__ == '__main__':
     main()
