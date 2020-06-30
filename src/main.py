@@ -13,7 +13,7 @@ import model
 import preprocessing as prep
 import argparse
 
-HYPER_PARAMETER_CONFIG = "./hparams.json"
+HYPER_PARAMETER_CONFIG = "../hparams.json"
 EMBEDDING_DIM = 60
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
@@ -112,7 +112,8 @@ def main():
         print("Skip Training")
     else:
         print("Start Training")
-    batch_one = next(iter(train_loader))
+    #Set to minus values or None in hparams.json to train on everything...
+    break_training_loop_idx = hparams["break_training_loop_idx"]
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
@@ -122,32 +123,36 @@ def main():
         network.train()
         total_loss = 0
         for epoch in range(hparams["num_epochs"]):
-            # TODO build a bigger loop...
-            images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch_one, device)
+            for idx , current_batch in enumerate(train_loader):
+                images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch, device)
+                optimizer.zero_grad()
+                # flatten all caption , flatten all batch and sequences, to make its category comparable
+                # for the loss function
+                out_captions = out_captions.reshape(-1)
+                log_prediction = network((images, in_captions)).reshape(out_captions.shape[0], -1)
+                # Warning if we are unable to learn, use the contiguous function of the tensor
+                # it insures that the sequence is not messed up during reshape
+                loss = loss_function(log_prediction, out_captions)
+                loss.backward()
+                # Use optimizer to take gradient step
+                optimizer.step()
+                #for dev purposes only
+                if idx == break_training_loop_idx:
+                    break
 
-            optimizer.zero_grad()
-            # flatten all caption , flatten all batch and sequences, to make its category comparable
-            # for the loss function
-            out_captions = out_captions.reshape(-1)
-            log_prediction = network((images, in_captions)).reshape(out_captions.shape[0], -1)
-            # Warning if we are unable to learn, use the contiguus function of the tensor
-            # it insures that the sequence is not messed up during reshape
-            loss = loss_function(log_prediction, out_captions)
-            loss.backward()
-            print("Loss:", loss.item())
-            # step 5. use optimizer to take gradient step
-            optimizer.step()
+            if (epoch+1) % 10 == 0:
+                print("Loss:", loss.item(), "Epoch:", epoch+1)
 
         end = timer()
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
 
-    bleu_score = model.BleuScorer.evaluate(train_loader, network, c_vectorizer, idx_break=3, print_prediction=True)
+    bleu_score = model.BleuScorer.evaluate(train_loader, network, c_vectorizer, idx_break=break_training_loop_idx, print_prediction=hparams["print_prediction"])
     print("Unweighted Current Bleu Scores", bleu_score)
     print("Weighted Current Bleu Scores", bleu_score.mean())
-    bleu_score_human_average = model.BleuScorer.evaluate_gold(train_loader, idx_break=3)
-    print("Unweighted Gold Bleu Scores", bleu_score)
-    print("Weighted Gold Bleu Scores", bleu_score.mean())
+    bleu_score_human_average = model.BleuScorer.evaluate_gold(train_loader, idx_break=break_training_loop_idx)
+    print("Unweighted Gold Bleu Scores", bleu_score_human_average)
+    print("Weighted Gold Bleu Scores", bleu_score_human_average.mean())
 
 def reminder_rnn_size():
     rnn_layer = 1
