@@ -11,7 +11,7 @@ import model
 import preprocessing as prep
 import argparse
 
-HYPER_PARAMETER_CONFIG = "../hparams.json"
+HYPER_PARAMETER_CONFIG = "./hparams.json"
 EMBEDDING_DIM = 60
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
@@ -31,8 +31,8 @@ def main():
         hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
 
     if args.download:
-        prep.download_images(hparams["img_train_url"], "./data")
-        prep.download_images(hparams["img_val_url"], "./data")
+        prep.download_images(hparams["img_train_url"], hparams["root"])
+        prep.download_images(hparams["img_val_url"], hparams["root"])
     trainset_name = "val"
     #trainset_name = "test"
     valset_name = "val"
@@ -66,7 +66,8 @@ def main():
         print("GloVe embedding size:", glove_model.vector_size)
         
     train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
-    test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name)
+    #The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
+    test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     #padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
@@ -91,8 +92,13 @@ def main():
         print("Skip Training")
     else:
         print("Start Training")
-    #Set to minus values or None in hparams.json to train on everything...
-    break_training_loop_idx = hparams["break_training_loop_idx"]
+    #Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
+    batch_size = hparams["batch_size"][0]
+    break_training_loop_percentage = hparams["break_training_loop_percentage"]
+    break_training_loop_idx = max(int(len(train_loader)/batch_size*break_training_loop_percentage/100) - 1, 0)
+    #break_val_loop_idx = max(int(len(val_loader)/batch_size*break_training_loop_percentage/100) - 1, 0)
+    #break_test_loop_idx = max(int(len(test_loader)/batch_size*break_training_loop_percentage/100) - 1, 0)
+
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
@@ -118,7 +124,6 @@ def main():
                 #for dev purposes only
                 if idx == break_training_loop_idx:
                     break
-
             if (epoch+1) % 10 == 0:
                 print("Loss:", loss.item(), "Epoch:", epoch+1)
         end = timer()
@@ -126,8 +131,8 @@ def main():
         torch.save(network.state_dict(), model_path)
 
     model.BleuScorer.perform_whole_evaluation(train_loader, network, c_vectorizer, break_training_loop_idx)
-    model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_training_loop_idx)
-    model.BleuScorer.perform_whole_evaluation(val_loader, network, c_vectorizer, break_training_loop_idx)
+    #model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_test_loop_idx)
+    #model.BleuScorer.perform_whole_evaluation(val_loader, network, c_vectorizer, break_val_loop_idx)
 
 if __name__ == '__main__':
     main()

@@ -300,9 +300,12 @@ class CocoDatasetWrapper(Dataset):
         self.vectorizer = vectorizer
 
     @classmethod
-    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017"):
+    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
         train_file = hparams[dataset_name]
-        image_dir = os.path.join(hparams['root'], train_file)
+        if image_dir == None:
+            image_dir = os.path.join(hparams['root'], train_file)
+        else:
+            image_dir = os.path.join(hparams['root'], image_dir)
         caption_file_path = prep.get_cleaned_captions_path(hparams, train_file)
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
@@ -325,7 +328,7 @@ class CocoDatasetWrapper(Dataset):
 
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
         batch_size = hparams["batch_size"][0]
-        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper)
+        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size)
         return train_loader
 
     @classmethod
@@ -407,7 +410,7 @@ class BleuScorer(object):
                 # packs all 5 labels for one image with the corresponding image id
                 references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
                                                range(5)]
-                if print:
+                if print_prediction:
                     print("\n#########################")
                     print("image", _id)
                     print("prediction", hypothesis[_id])
@@ -439,7 +442,7 @@ class BleuScorer(object):
         return pd_score
 
     @classmethod
-    def calc_scores(ref, hypo):
+    def calc_scores(cls, ref, hypo):
 
         """
         Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
@@ -466,11 +469,11 @@ class BleuScorer(object):
         train_bleu_score = BleuScorer.evaluate(loader, network, c_vectorizer,
                                                      idx_break=break_training_loop_idx,
                                                      print_prediction=print_prediction)
-        print("Unweighted Current Bleu Scores", train_bleu_score)
-        print("Weighted Current Bleu Scores", train_bleu_score.mean())
+        print("Unweighted Current Bleu Scores:\n", train_bleu_score)
+        print("Weighted Current Bleu Scores:\n", train_bleu_score.mean(axis=1)[0])
         bleu_score_human_average = BleuScorer.evaluate_gold(loader, idx_break=break_training_loop_idx)
-        print("Unweighted Gold Bleu Scores", bleu_score_human_average)
-        print("Weighted Gold Bleu Scores", bleu_score_human_average.mean())
+        print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
+        print("Weighted Gold Bleu Scores:\n", bleu_score_human_average.mean())
 
 
 def predict_beam(model, input_for_prediction, device, c_vectorizer, beam_width = 3, found_sequences = 0, end_token_idx= 3):
