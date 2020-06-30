@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 import torch
-import torchvision.transforms as transforms
 import torch.utils.data
 import os
-import torchvision.datasets as dset
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
@@ -35,12 +33,14 @@ def main():
     if args.download:
         prep.download_images(hparams["img_train_url"], "./data")
         prep.download_images(hparams["img_val_url"], "./data")
-    train_file = hparams['val']
+    trainset_name = "val"
+    #trainset_name = "test"
+    valset_name = "val"
+    testset_name ="test"
     device = hparams["device"]
     if not torch.cuda.is_available():
         device = "cpu"
-    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "val")
-    #cleaned_captions = prep.create_list_of_captions_and_clean(hparams, "train")
+    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name)
     embedding = None
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     vocabulary_size = len(c_vectorizer.get_vocab())
@@ -65,32 +65,11 @@ def main():
         embedding.weight.requires_grad = False
         print("GloVe embedding size:", glove_model.vector_size)
         
+    train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
+    test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name)
+    val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     #padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
-    image_dir = os.path.join(hparams['root'], train_file)
-
-    caption_file_path = prep.get_cleaned_captions_path(hparams, train_file)
-    print("Image dir:", image_dir)
-    print("Caption file path:", caption_file_path)
-
-    #rgb_stats = prep.read_json_config(hparams["rgb_stats"])
-    stats_rounding = hparams["rounding"]
-    rgb_stats ={"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
-    rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
-    rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
-    # TODO create a testing split, there is only training and val currently...
-    coco_train_set = dset.CocoDetection(root=image_dir,
-                                        annFile=caption_file_path,
-                                        transform=transforms.Compose([prep.CenteringPad(),
-                                                                      transforms.Resize((640, 640)),
-                                                                      # transforms.CenterCrop(IMAGE_SIZE),
-                                                                      transforms.ToTensor(),
-                                                                      transforms.Normalize(rgb_mean, rgb_sd)])
-                                        )
-
-    coco_dataset_wrapper = model.CocoDatasetWrapper(coco_train_set, c_vectorizer)
-    batch_size = hparams["batch_size"][0]
-    train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size)
 
     ## Generate output folder if non-existent
     model_dir = hparams["model_storage"]
@@ -142,38 +121,13 @@ def main():
 
             if (epoch+1) % 10 == 0:
                 print("Loss:", loss.item(), "Epoch:", epoch+1)
-
         end = timer()
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
 
-    bleu_score = model.BleuScorer.evaluate(train_loader, network, c_vectorizer, idx_break=break_training_loop_idx, print_prediction=hparams["print_prediction"])
-    print("Unweighted Current Bleu Scores", bleu_score)
-    print("Weighted Current Bleu Scores", bleu_score.mean())
-    bleu_score_human_average = model.BleuScorer.evaluate_gold(train_loader, idx_break=break_training_loop_idx)
-    print("Unweighted Gold Bleu Scores", bleu_score_human_average)
-    print("Weighted Gold Bleu Scores", bleu_score_human_average.mean())
-
-def reminder_rnn_size():
-    rnn_layer = 1
-    feature_size = 30
-    hidden_size = 20
-    seq = 3
-    batch_size = 5
-
-    # self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True, dev)
-    rnn = nn.LSTM(feature_size, hidden_size, rnn_layer, batch_first=True)
-    input = torch.randn(batch_size, seq, feature_size)
-    h0 = torch.randn(rnn_layer, batch_size, hidden_size)
-    c0 = torch.randn(rnn_layer, batch_size, hidden_size)
-    output, (hn, cn) = rnn(input, (h0, c0))
-    print(output.shape)
-    print(hn.shape)
-
+    model.BleuScorer.perform_whole_evaluation(train_loader, network, c_vectorizer, break_training_loop_idx)
+    model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_training_loop_idx)
+    model.BleuScorer.perform_whole_evaluation(val_loader, network, c_vectorizer, break_training_loop_idx)
 
 if __name__ == '__main__':
     main()
-
-    #calculate_avg_bleu_human()
-
-    # reminder_rnn_size()
