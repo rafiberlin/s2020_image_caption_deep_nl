@@ -7,15 +7,14 @@ from collections import  Counter
 import string
 import torchvision.models as models
 from itertools import combinations
+import os
+import torchvision.transforms as transforms
+import torchvision.datasets as dset
+import preprocessing as prep
 
-from pycocoevalcap.cider.cider import Cider
-from pycocoevalcap.rouge.rouge import Rouge
-from pycocoevalcap.spice.spice import Spice
 from torch.utils.data import Dataset
 import pandas as pd
-from pycocoevalcap.eval import COCOEvalCap
 from pycocoevalcap.bleu.bleu import Bleu
-from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -301,6 +300,38 @@ class CocoDatasetWrapper(Dataset):
         self.vectorizer = vectorizer
 
     @classmethod
+    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
+        train_file = hparams[dataset_name]
+        if image_dir == None:
+            image_dir = os.path.join(hparams['root'], train_file)
+        else:
+            image_dir = os.path.join(hparams['root'], image_dir)
+        caption_file_path = prep.get_cleaned_captions_path(hparams, train_file)
+        print("Image dir:", image_dir)
+        print("Caption file path:", caption_file_path)
+
+        # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
+        stats_rounding = hparams["rounding"]
+        rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
+                     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
+        rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
+        rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
+        # TODO create a testing split, there is only training and val currently...
+        coco_train_set = dset.CocoDetection(root=image_dir,
+                                            annFile=caption_file_path,
+                                            transform=transforms.Compose([prep.CenteringPad(),
+                                                                          transforms.Resize((640, 640)),
+                                                                          # transforms.CenterCrop(IMAGE_SIZE),
+                                                                          transforms.ToTensor(),
+                                                                          transforms.Normalize(rgb_mean, rgb_sd)])
+                                            )
+
+        coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
+        batch_size = hparams["batch_size"][0]
+        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size)
+        return train_loader
+
+    @classmethod
     def transform_batch_for_training(cls, batch, device="cpu"):
         """
 
@@ -361,7 +392,7 @@ class BleuScorer(object):
         return pd_score
 
     @classmethod
-    def evaluate(self, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1, print_prediction=False):
+    def evaluate(cls, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1, print_prediction=False):
         # there is no other mthod to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
@@ -379,7 +410,7 @@ class BleuScorer(object):
                 # packs all 5 labels for one image with the corresponding image id
                 references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
                                                range(5)]
-                if print:
+                if print_prediction:
                     print("\n#########################")
                     print("image", _id)
                     print("prediction", hypothesis[_id])
@@ -388,7 +419,7 @@ class BleuScorer(object):
             if idx == idx_break:
                 # useful for debugging
                 break
-        score = self.calc_scores(references, hypothesis)
+        score = cls.calc_scores(references, hypothesis)
         pd_score = pd.DataFrame([score])
 
         """
@@ -410,8 +441,8 @@ class BleuScorer(object):
 
         return pd_score
 
-
-    def calc_scores(ref, hypo):
+    @classmethod
+    def calc_scores(cls, ref, hypo):
 
         """
         Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
@@ -431,6 +462,19 @@ class BleuScorer(object):
             else:
                 final_scores[method] = score
         return final_scores
+
+    @classmethod
+    def perform_whole_evaluation(cls, loader, network, c_vectorizer, break_training_loop_idx=3, print_prediction=False):
+        print("Run complete evaluation for:", loader.__repr__())
+        train_bleu_score = BleuScorer.evaluate(loader, network, c_vectorizer,
+                                                     idx_break=break_training_loop_idx,
+                                                     print_prediction=print_prediction)
+        print("Unweighted Current Bleu Scores:\n", train_bleu_score)
+        print("Weighted Current Bleu Scores:\n", train_bleu_score.mean(axis=1)[0])
+        bleu_score_human_average = BleuScorer.evaluate_gold(loader, idx_break=break_training_loop_idx)
+        print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
+        print("Weighted Gold Bleu Scores:\n", bleu_score_human_average.mean())
+
 
 def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_width = 3):
     """
@@ -489,7 +533,7 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
             # Find the correct word
             k_idx = index // vocab_size
             word_idx = index % vocab_size
-            
+
             track_best[0,i,idx] = word_idx
             track_best[1,i,idx] = log_prob
             track_best[2,i,idx] = k_idx
@@ -698,3 +742,21 @@ class SequenceVocabulary(Vocabulary):
             return self._token_to_idx.get(token, self.unk_index)
         else:
             return self._token_to_idx[token]
+
+
+def reminder_rnn_size():
+    rnn_layer = 1
+    feature_size = 30
+    hidden_size = 20
+    seq = 3
+    batch_size = 5
+
+    # self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True, dev)
+    rnn = nn.LSTM(feature_size, hidden_size, rnn_layer, batch_first=True)
+    input = torch.randn(batch_size, seq, feature_size)
+    h0 = torch.randn(rnn_layer, batch_size, hidden_size)
+    c0 = torch.randn(rnn_layer, batch_size, hidden_size)
+    output, (hn, cn) = rnn(input, (h0, c0))
+    print(output.shape)
+    print(hn.shape)
+
