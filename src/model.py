@@ -402,7 +402,10 @@ class BleuScorer(object):
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 _id = image_id.item()
                 starting_token = c_vectorizer.create_starting_sequence().to(device)
-                input_for_prediction = (imgs[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+                img = imgs[idx].unsqueeze(dim=0).to(device)
+                caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
+                input_for_prediction = (img, caption)
+
                 #TODO plug the beam search prediction
                 predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
                 current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
@@ -481,7 +484,7 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
     WIP implementation of beam search
     """
 
-    seq_len = 20#input_for_prediction[1].shape[2]
+    seq_len = 10#input_for_prediction[1].shape[2]
     device = next(model.parameters()).device
 
     image, vectorized_seq = input_for_prediction
@@ -506,7 +509,6 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
     current_predictions = torch.zeros((beam_width * vocab_size))
 
     # For every sequence index consider all previous beam_width possibilities
-    # TODO: use whole sequence length, for now 10 for debugging purposes
     for idx in range(1, seq_len):
         for k in range(beam_width):
             i = track_best[0,k,idx-1]
