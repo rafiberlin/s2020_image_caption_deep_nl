@@ -31,8 +31,10 @@ def main():
         hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
 
     if args.download:
-        prep.download_images(hparams["img_train_url"], hparams["root"])
-        prep.download_images(hparams["img_val_url"], hparams["root"])
+        prep.download_unpack_zip(hparams["img_train_url"], hparams["root"])
+        prep.download_unpack_zip(hparams["img_val_url"], hparams["root"])
+        prep.download_unpack_zip(hparams["glove_url"], hparams["root"])
+        exec(open("./util/glove_conv.py").read())
     trainset_name = "val"
     #trainset_name = "test"
     valset_name = "val"

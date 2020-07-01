@@ -300,7 +300,7 @@ def create_cocosplit(args):
 
 
 
-def download_images(zipurl, storage_directory):
+def download_unpack_zip(zipurl, storage_directory):
     """
     From https://svaderia.github.io/articles/downloading-and-unzipping-a-zipfile/
     download the COCO images and put them under /data
@@ -334,7 +334,7 @@ if __name__ == '__main__':
 
     #for example from captions_train2017.json we get cleaned_captions_train2017.json and cleaned_captions_train2017_labels_only.json
     #clean_caption_annotations(hparams, ["train", "val", "test"])
-    #download_images("https://download.ccleaner.com/portable/ccsetup568.zip", "../data")
-    download_images(hparams["img_train_url"], "./data")
-    download_images(hparams["img_val_url"], "./data")
+    #download_unpack_zip(hparams["img_train_url"], hparams["root"])
+    #download_unpack_zip(hparams["img_val_url"], hparams["root"])
+    download_unpack_zip(hparams["glove_url"], hparams["root"])
 
