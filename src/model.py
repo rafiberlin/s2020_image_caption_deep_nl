@@ -1,9 +1,10 @@
 import torch
+from datetime import datetime
 import torch.nn as nn
 import torch.utils.data
 import torch.nn.functional as F
 import numpy as np
-from collections import  Counter
+from collections import Counter
 import string
 import torchvision.models as models
 from itertools import combinations
@@ -11,10 +12,11 @@ import os
 import torchvision.transforms as transforms
 import torchvision.datasets as dset
 import preprocessing as prep
-
+import gensim
 from torch.utils.data import Dataset
 import pandas as pd
 from pycocoevalcap.bleu.bleu import Bleu
+
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -114,34 +116,24 @@ class LSTMModel(nn.Module):
     # I added the padding index, as it is important to flag the index
     # that contains dummy information to speed up learning in embeddings
     def __init__(self,
-                 embedding_dim,
-                 character_set_size,
                  hidden_dim_rnn,
                  hidden_dim_cnn,
-                 padding_idx=None,
+                 pretrained_embeddings,
                  rnn_layers=1,
-                 pretrained_embeddings=None,
                  cnn_model=None,
                  drop_out_prob=0.2
                  ):
         super(LSTMModel, self).__init__()
-        self.embedding_dim = embedding_dim
-        self.character_set_size = character_set_size
+        self.embeddings = pretrained_embeddings
+        self.embedding_dim = self.embeddings.embedding_dim
+        self.vocabulary_size = self.embeddings.num_embeddings
         self.rnn_layers = rnn_layers
         self.hidden_dim_rnn = hidden_dim_rnn
-        self.n_classes = character_set_size
         # The output should be the same size as the hidden state size of RNN
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
         # ImageToHiddenState
-
-        if pretrained_embeddings:
-            # TODO HACK: improve this constructor api
-            self.embeddings = pretrained_embeddings
-            self.embedding_dim = pretrained_embeddings.embedding_dim
-        else:
-            self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
-                                embedding_dim=self.embedding_dim, padding_idx=padding_idx)
+        self.n_classes = self.vocabulary_size
 
         if cnn_model == "vgg16":
             print("Using vgg16...")
@@ -363,7 +355,7 @@ class CocoDatasetWrapper(Dataset):
 class BleuScorer(object):
 
     @classmethod
-    def evaluate_gold(cls, train_loader, idx_break=-1):
+    def evaluate_gold(cls,hparams, train_loader, idx_break=-1):
 
         # NEVER do [{}]* 5!!!!
         # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
@@ -389,10 +381,17 @@ class BleuScorer(object):
             scores.append(cls.calc_scores(reference, hypothesis))
 
         pd_score = pd.DataFrame(scores).mean()
+
+        if hparams["save_eval_results"]:
+            dt = datetime.now(tz=None)
+            timestamp = dt.strftime(hparams["timestamp_prefix"])
+            filepath = os.path.join(hparams["model_storage"], timestamp+"_bleu_gold.json")
+            prep.create_json_config(pd_score.to_dict(), filepath)
+
         return pd_score
 
     @classmethod
-    def evaluate(cls, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1, print_prediction=False):
+    def evaluate(cls, hparams, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1):
         # there is no other mthod to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
@@ -410,17 +409,26 @@ class BleuScorer(object):
                 # packs all 5 labels for one image with the corresponding image id
                 references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
                                                range(5)]
-                if print_prediction:
-                    print("\n#########################")
-                    print("image", _id)
-                    print("prediction", hypothesis[_id])
-                    print("gold captions", references[_id])
+                if hparams["print_prediction"]:
+                    pass
+                    #print("\n#########################")
+                    #print("image", _id)
+                    #print("prediction", hypothesis[_id])
+                    #print("gold captions", references[_id])
 
             if idx == idx_break:
                 # useful for debugging
                 break
         score = cls.calc_scores(references, hypothesis)
         pd_score = pd.DataFrame([score])
+
+        if hparams["save_eval_results"]:
+            dt = datetime.now(tz=None)
+            timestamp = dt.strftime(hparams["timestamp_prefix"])
+            filepath = os.path.join(hparams["model_storage"], timestamp+"_bleu_prediction.json")
+            filepath_2 = os.path.join(hparams["model_storage"], timestamp+"_bleu_prediction_scores.json")
+            prep.create_json_config({ k:(hypothesis[k],references[k]) for k in hypothesis.keys()}, filepath)
+            prep.create_json_config([score], filepath_2)
 
         """
         this code delivers the same results but we can't calculate a reasonable score on the 
@@ -464,14 +472,13 @@ class BleuScorer(object):
         return final_scores
 
     @classmethod
-    def perform_whole_evaluation(cls, loader, network, c_vectorizer, break_training_loop_idx=3, print_prediction=False):
+    def perform_whole_evaluation(cls, hparams, loader, network, c_vectorizer, break_training_loop_idx=3):
         print("Run complete evaluation for:", loader.__repr__())
-        train_bleu_score = BleuScorer.evaluate(loader, network, c_vectorizer,
-                                                     idx_break=break_training_loop_idx,
-                                                     print_prediction=print_prediction)
+        train_bleu_score = BleuScorer.evaluate(hparams, loader, network, c_vectorizer,
+                                                     idx_break=break_training_loop_idx)
         print("Unweighted Current Bleu Scores:\n", train_bleu_score)
         print("Weighted Current Bleu Scores:\n", train_bleu_score.mean(axis=1)[0])
-        bleu_score_human_average = BleuScorer.evaluate_gold(loader, idx_break=break_training_loop_idx)
+        bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx)
         print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
         print("Weighted Gold Bleu Scores:\n", bleu_score_human_average.mean())
 
@@ -577,7 +584,37 @@ def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_nu
     return vectorized_seq
 
 
+def create_embedding(hparams, c_vectorizer, padding_idx=0):
+    vocabulary_size = len(c_vectorizer.get_vocab())
+    if(hparams["use_glove"]):
+        print("Loading glove vectors...")
+        glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
+        glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
+        glove_embedding = np.zeros((vocabulary_size, glove_model.vector_size))
+        token2idx = {word: glove_model.vocab[word].index for word in glove_model.vocab.keys()}
+        for word in c_vectorizer.get_vocab()._token_to_idx.keys():
+            i = c_vectorizer.get_vocab().lookup_token(word)
+            if word in token2idx:
+                glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
+            else:
+                # From NLP with pytorch, it should be better to init the unknown tokens
+                embedding_i = torch.ones(1, glove_model.vector_size)
+                torch.nn.init.xavier_uniform_(embedding_i)
+                glove_embedding[i, :] = embedding_i
 
+        embed_size = glove_model.vector_size
+        if hparams["embedding_dim"] < embed_size:
+            embed_size = hparams["embedding_dim"]
+
+        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_embedding[:, :embed_size]))
+        # TODO: not sure if we should not start with the pretrained but still be learning with our
+        # training => transfer learning...
+        embedding.weight.requires_grad =  hparams["improve_embedding"]
+        print("GloVe embedding size:", glove_model.vector_size)
+    else:
+        nn.Embedding(num_embeddings=vocabulary_size,
+                     embedding_dim=hparams["embedding_dim"], padding_idx=padding_idx)
+    return embedding
 
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""

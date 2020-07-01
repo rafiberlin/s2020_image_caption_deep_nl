@@ -8,6 +8,7 @@ src/__pycache__
 /data/_
 #exclude the original annotations
 /data/annotations/captions*.json
+/model_storage/*bleu*
 
 #for now exclude model_storage
 #/model_storage
