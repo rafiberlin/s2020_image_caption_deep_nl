@@ -42,6 +42,9 @@ def main():
     if not torch.cuda.is_available():
         print("Warning, only CPU processing available!")
         device = "cpu"
+    else:
+        print("CUDA GGP is available", "Number of machines:", torch.cuda.device_count())
+
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name)
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = None
