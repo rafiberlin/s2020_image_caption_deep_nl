@@ -59,7 +59,7 @@ def main():
 
     train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
     #The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
+    #test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     ## Generate output folder if non-existent
