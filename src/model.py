@@ -401,7 +401,7 @@ class BleuScorer(object):
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 _id = image_id.item()
                 starting_token = c_vectorizer.create_starting_sequence().to(device)
-                input_for_prediction = (imgs[idx].unsqueeze(dim=0), starting_token.unsqueeze(dim=0).unsqueeze(dim=0))
+                input_for_prediction = (imgs[idx].unsqueeze(dim=0).to(device), starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device))
                 #TODO plug the beam search prediction
                 predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
                 current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
@@ -410,11 +410,10 @@ class BleuScorer(object):
                 references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
                                                range(5)]
                 if hparams["print_prediction"]:
-                    pass
-                    #print("\n#########################")
-                    #print("image", _id)
-                    #print("prediction", hypothesis[_id])
-                    #print("gold captions", references[_id])
+                    print("\n#########################")
+                    print("image", _id)
+                    print("prediction", hypothesis[_id])
+                    print("gold captions", references[_id])
 
             if idx == idx_break:
                 # useful for debugging
