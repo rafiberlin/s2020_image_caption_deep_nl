@@ -321,7 +321,7 @@ class CocoDatasetWrapper(Dataset):
                                             )
 
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
-        batch_size = hparams["batch_size"][0]
+        batch_size = hparams["batch_size"]
         train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size)
         return train_loader
 
@@ -795,7 +795,7 @@ def create_model_name(hparams):
     """
 
     root_name, extension = hparams["model_name"].split(".")
-    model_name = f"{hparams['cnn_model']}_{root_name}_cnn{str(hparams['hidden_dim_cnn'])}_rnn{str(hparams['hidden_dim_rnn'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_do{str(hparams['drop_out_prob'])}.{extension}"
+    model_name = f"{hparams['cnn_model']}_{root_name}_cnn{str(hparams['hidden_dim_cnn'])}_rnn{str(hparams['hidden_dim_rnn'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_bs{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}.{extension}"
         
     return model_name
 
