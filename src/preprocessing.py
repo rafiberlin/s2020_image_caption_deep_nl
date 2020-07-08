@@ -323,6 +323,16 @@ def download_unpack_zip(zipurl, storage_directory):
     zf.close()
     os.remove(temp_path)
 
+def unzip_glove():
+    temp_path = "./data/glove.6B.zip"
+    zf = ZipFile(temp_path)
+    # Extract its contents into <extraction_path>
+    # note that extractall will automatically create the path
+    zf.extractall(path="./data")
+    # close the ZipFile instance
+    zf.close()
+    os.remove(temp_path)
+
 
 if __name__ == '__main__':
     # Because the original test labels are missing in the Coco dataset (remember, it was meant as a competition)
@@ -336,5 +346,6 @@ if __name__ == '__main__':
     #clean_caption_annotations(hparams, ["train", "val", "test"])
     #download_unpack_zip(hparams["img_train_url"], hparams["root"])
     #download_unpack_zip(hparams["img_val_url"], hparams["root"])
-    download_unpack_zip(hparams["glove_url"], hparams["root"])
-
+    #download_unpack_zip(hparams["glove_url"], hparams["root"])
+    # no zip unzip command on the potsdam server...
+    unzip_glove()

@@ -4,9 +4,7 @@ import torch.utils.data
 import os
 import torch.nn as nn
 import torch.optim as optim
-import numpy as np
 from timeit import default_timer as timer
-import gensim
 import model
 import preprocessing as prep
 import argparse
@@ -42,38 +40,23 @@ def main():
     testset_name ="test"
     device = hparams["device"]
     if not torch.cuda.is_available():
+        print("Warning, only CPU processing available!")
         device = "cpu"
+    else:
+        print("CUDA GGP is available", "Number of machines:", torch.cuda.device_count())
+
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name)
-    embedding = None
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
-    vocabulary_size = len(c_vectorizer.get_vocab())
+    padding_idx = None
+    if(hparams["use_padding_idx"]):
+        padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
-    if hparams["use_glove"]:
-        print("Loading glove vectors...")
-        glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
-        glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
+    embedding = model.create_embedding(hparams, c_vectorizer, padding_idx)
 
-        glove_embedding = np.random.rand(vocabulary_size, glove_model.vector_size)
-
-        token2idx = {}
-        for word in glove_model.vocab.keys():
-            token2idx[word] = glove_model.vocab[word].index
-
-        for word in c_vectorizer.get_vocab()._token_to_idx.keys():
-            i = c_vectorizer.get_vocab().lookup_token(word)
-            if word in token2idx:
-                glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
-
-        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_embedding))
-        embedding.weight.requires_grad = False
-        print("GloVe embedding size:", glove_model.vector_size)
-        
     train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
     #The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
     #test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
-
-    #padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
     ## Generate output folder if non-existent
     model_dir = hparams["model_storage"]
@@ -86,7 +69,7 @@ def main():
     print("Model save path:", model_path)
 
     ## Training start
-    network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], padding_idx=None, pretrained_embeddings=embedding, cnn_model=hparams["cnn_model"]).to(device)
+    network = model.LSTMModel(hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], pretrained_embeddings=embedding, cnn_model=hparams["cnn_model"]).to(device)
     #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
     if os.path.isfile(model_path) and not args.train:
@@ -133,7 +116,7 @@ def main():
         print("Overall Learning Time", end - start)
         torch.save(network.state_dict(), model_path)
 
-    model.BleuScorer.perform_whole_evaluation(train_loader, network, c_vectorizer, break_training_loop_idx, hparams["print_prediction"])
+    model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx)
     #model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_test_loop_idx, hparams["print_prediction"])
     #model.BleuScorer.perform_whole_evaluation(val_loader, network, c_vectorizer, break_val_loop_idx, hparams["print_prediction"])
 

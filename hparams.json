@@ -17,13 +17,17 @@
    "cnn_model": "default",
    "device": "cuda:0",
    "rounding": 6,
-   "use_glove": false,
    "root": "./data",
    "train": "train2017",
    "val": "val2017",
    "test": "test2017",
-   "glove_embedding": "glove.6B.100d.bin.word2vec",
+   "embedding_dim" : 300,
+   "glove_embedding": "glove.6B.300d.bin.word2vec",
+   "improve_embedding": true,
+   "use_glove": true,
+   "use_padding_idx": true,
    "rgb_stats": "rgb_stats.json",
+   "timestamp_prefix": "%d%b%Y_%H_%M_%S_%f",
    "model_storage": "./model_storage",
    "model_name": "network.pt",
    "num_epochs": 300,
@@ -33,5 +37,8 @@
    "annotation_url": "http://images.cocodataset.org/annotations/annotations_trainval2017.zip",
    "glove_url": "http://nlp.stanford.edu/data/glove.6B.zip",
    "break_training_loop_percentage": 5,
-   "print_prediction" : false
+   "print_prediction" : false,
+   "save_eval_results" : true,
+   "drop_out_prob" : 0.1
+
 }
