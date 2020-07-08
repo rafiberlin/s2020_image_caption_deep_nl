@@ -12,8 +12,8 @@
       10,
       100
    ],
-   "hidden_dim_rnn": 200,
-   "hidden_dim_cnn": 200,
+   "hidden_dim_rnn": 100,
+   "hidden_dim_cnn": 100,
    "cnn_model": "mobilenet",
    "device": "cuda:0",
    "rounding": 6,
@@ -21,7 +21,7 @@
    "train": "train2017",
    "val": "val2017",
    "test": "test2017",
-   "embedding_dim" : 200,
+   "embedding_dim" : 100,
    "glove_embedding": "glove.6B.300d.bin.word2vec",
    "improve_embedding": true,
    "use_glove": true,
@@ -30,7 +30,7 @@
    "timestamp_prefix": "%d%b%Y_%H_%M_%S_%f",
    "model_storage": "./model_storage",
    "model_name": "network.pt",
-   "num_epochs": 200,
+   "num_epochs": 20,
    "lr": 0.01,
    "img_train_url": "http://images.cocodataset.org/zips/train2017.zip",
    "img_val_url": "http://images.cocodataset.org/zips/val2017.zip",
@@ -42,5 +42,5 @@
    "drop_out_prob" : 0.1,
    "training_report_frequency" : 20,
    "save_pending_model" : true,
-   "last_saved_model" : "epoch_20_mobilenet_network.pt"
+   "last_saved_model" : null
 }
