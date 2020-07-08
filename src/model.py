@@ -16,6 +16,7 @@ import gensim
 from torch.utils.data import Dataset
 import pandas as pd
 from pycocoevalcap.bleu.bleu import Bleu
+from scipy.stats.mstats import gmean
 
 class ImageToHiddenState(nn.Module):
     """
@@ -476,10 +477,14 @@ class BleuScorer(object):
         train_bleu_score = BleuScorer.evaluate(hparams, loader, network, c_vectorizer,
                                                      idx_break=break_training_loop_idx)
         print("Unweighted Current Bleu Scores:\n", train_bleu_score)
-        print("Weighted Current Bleu Scores:\n", train_bleu_score.mean(axis=1)[0])
+        train_bleu_score_pd =train_bleu_score.to_numpy().reshape(-1)
+        print("Weighted Current Bleu Scores:\n", train_bleu_score_pd.mean())
+        print("Geometric Mean Current Bleu Score:\n", gmean(train_bleu_score_pd))
         bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx)
+        bleu_score_human_average_np = bleu_score_human_average.to_numpy().reshape(-1)
         print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
-        print("Weighted Gold Bleu Scores:\n", bleu_score_human_average.mean())
+        print("Weighted Gold Bleu Scores:\n", bleu_score_human_average_np.mean())
+        print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
 
 
 def predict_beam(model, input_for_prediction, device, c_vectorizer, beam_width = 3, found_sequences = 0, end_token_idx= 3):
