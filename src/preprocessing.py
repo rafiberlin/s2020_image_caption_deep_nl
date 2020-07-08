@@ -1,4 +1,3 @@
-from argparse import Namespace
 from collections import  Counter
 import torchvision.datasets as dset
 from pathlib import Path
@@ -11,7 +10,7 @@ import main
 from nltk.tokenize import word_tokenize
 from tqdm import tqdm
 import json
-import argparse
+import numpy as np
 import funcy
 from sklearn.model_selection import train_test_split
 from urllib.request import urlopen
@@ -298,7 +297,17 @@ def create_cocosplit(args):
 
         print("Saved {} entries in {} and {} in {}".format(len(x), args.train, len(y), args.test))
 
-
+def set_seed_everywhere(seed):
+    """
+    From NLP with Pytorch book.
+    :param seed:
+    :param cuda:
+    :return:
+    """
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 def download_unpack_zip(zipurl, storage_directory):
     """

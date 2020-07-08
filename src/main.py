@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from tqdm import tqdm
 import torch
 import torch.utils.data
 import os
@@ -10,13 +11,16 @@ import preprocessing as prep
 import argparse
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
+GLOVE_SCRIPT = "./util/glove_conv.py"
 EMBEDDING_DIM = 60
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 END_WORD = "<END>"
 IMAGE_SIZE = 320
+SEED = 1
 
 def main():
+
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--params", help="hparams config file")
     parser.add_argument("--train", action="store_true", help="force training")
@@ -32,7 +36,7 @@ def main():
         prep.download_unpack_zip(hparams["img_train_url"], hparams["root"])
         prep.download_unpack_zip(hparams["img_val_url"], hparams["root"])
         prep.download_unpack_zip(hparams["glove_url"], hparams["root"])
-        with open("./util/glove_conv.py") as script_file:
+        with open(GLOVE_SCRIPT) as script_file:
             exec(script_file.read())
     trainset_name = "val"
     #trainset_name = "test"
@@ -44,7 +48,7 @@ def main():
         device = "cpu"
     else:
         print("CUDA GGP is available", "Number of machines:", torch.cuda.device_count())
-
+    prep.set_seed_everywhere(SEED)
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name)
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = None
@@ -60,12 +64,13 @@ def main():
 
     ## Generate output folder if non-existent
     model_dir = hparams["model_storage"]
+    model_name = hparams["cnn_model"]+"_"+hparams["model_name"]
     if not os.path.isdir(model_dir):
         try:
             os.mkdir(model_dir)
         except OSError:
             print(f"Creation of the directory {model_dir} failed")
-    model_path = os.path.join(model_dir, hparams["model_name"])
+    model_path = os.path.join(model_dir, model_name)
     print("Model save path:", model_path)
 
     ## Training start
@@ -78,6 +83,13 @@ def main():
         print("Skip Training")
     else:
         print("Start Training")
+        # last_saved_model is either null in the Json file or contains the name of the pending model file to be loaded
+        if hparams["last_saved_model"]:
+            last_model = os.path.join(model_dir, hparams["last_saved_model"])
+            if os.path.isfile(last_model):
+                print("Load temporary model: ", last_model)
+                network.load_state_dict(torch.load(last_model))
+
     #Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
     batch_size = hparams["batch_size"][0]
     break_training_loop_percentage = hparams["break_training_loop_percentage"]
@@ -93,8 +105,8 @@ def main():
         torch.cuda.empty_cache()
         network.train()
         total_loss = 0
-        for epoch in range(hparams["num_epochs"]):
-            for idx , current_batch in enumerate(train_loader):
+        for epoch in tqdm(range(hparams["num_epochs"])):
+            for idx, current_batch in enumerate(train_loader):
                 images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch, device)
                 optimizer.zero_grad()
                 # flatten all caption , flatten all batch and sequences, to make its category comparable
@@ -110,10 +122,17 @@ def main():
                 #for dev purposes only
                 if idx == break_training_loop_idx:
                     break
-            if (epoch+1) % 10 == 0:
+
+            if (epoch+1) % hparams["training_report_frequency"] == 0:
+                total_loss += loss.item()
                 print("Loss:", loss.item(), "Epoch:", epoch+1)
+                if hparams["save_pending_model"]:
+                    temp_model = os.path.join(model_dir, "epoch_"+str(epoch+1) + "_" + model_name)
+                    torch.save(network.state_dict(), temp_model)
+
         end = timer()
         print("Overall Learning Time", end - start)
+        print("Total Loss", total_loss)
         torch.save(network.state_dict(), model_path)
 
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx)
