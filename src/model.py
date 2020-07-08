@@ -1,19 +1,23 @@
 import torch
+from datetime import datetime
 import torch.nn as nn
 import torch.utils.data
 import torch.nn.functional as F
 import numpy as np
-from collections import  Counter
+from collections import Counter
 import string
-
-from pycocoevalcap.cider.cider import Cider
-from pycocoevalcap.rouge.rouge import Rouge
-from pycocoevalcap.spice.spice import Spice
+import torchvision.models as models
+from itertools import combinations
+import os
+import torchvision.transforms as transforms
+import torchvision.datasets as dset
+import preprocessing as prep
+import gensim
 from torch.utils.data import Dataset
 import pandas as pd
-from pycocoevalcap.eval import COCOEvalCap
 from pycocoevalcap.bleu.bleu import Bleu
-from pycocoevalcap.tokenizer.ptbtokenizer import PTBTokenizer
+from scipy.stats.mstats import gmean
+
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -42,6 +46,51 @@ class ImageToHiddenState(nn.Module):
 
         return t
 
+class VGG16Module(nn.Module):
+    """
+
+    Uses a conv layer to scale from 640x640x3 down to 230x230x3
+    Passes that image a modified VGG16
+    VGG16 outputs a linear layer with output_dim features
+
+    """
+
+    def __init__(self, output_dim):
+        super().__init__()
+        self.vgg16 = models.vgg16(pretrained=True)
+        self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=182, stride=2)
+        self.linear = nn.Linear(4096, output_dim)
+
+        # Remove last four layers of vgg16
+        self.vgg16.classifier = nn.Sequential(*list(self.vgg16.classifier.children())[:-4])
+
+    def forward(self, img):
+        y = self.conv(img)
+        with torch.no_grad():
+            y = self.vgg16(y)
+        y = self.linear(y)
+        return y
+
+class MobileNetModule(nn.Module):
+    """
+
+    Uses a conv layer to scale from 640x640x3 down to 256x256x3
+    Mobilenet outputs a linear layer with output_dim features
+
+    """
+
+    def __init__(self, output_dim):
+        super().__init__()
+        self.mobile = models.mobilenet_v2(pretrained=True)
+        self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=130, stride=2)
+        self.linear = nn.Linear(1000, output_dim)
+
+    def forward(self, img):
+        y = self.conv(img)
+        with torch.no_grad():
+            y = self.mobile(y)
+        y = self.linear(y)
+        return y
 
 class LSTMModel(nn.Module):
 
@@ -68,42 +117,40 @@ class LSTMModel(nn.Module):
     # I added the padding index, as it is important to flag the index
     # that contains dummy information to speed up learning in embeddings
     def __init__(self,
-                 embedding_dim,
-                 character_set_size,
                  hidden_dim_rnn,
                  hidden_dim_cnn,
-                 padding_idx=None,
+                 pretrained_embeddings,
                  rnn_layers=1,
-                 pretrained_embeddings=None,
+                 cnn_model=None,
                  drop_out_prob=0.2
                  ):
         super(LSTMModel, self).__init__()
-        self.embedding_dim = embedding_dim
-        self.character_set_size = character_set_size
+        self.embeddings = pretrained_embeddings
+        self.embedding_dim = self.embeddings.embedding_dim
+        self.vocabulary_size = self.embeddings.num_embeddings
         self.rnn_layers = rnn_layers
         self.hidden_dim_rnn = hidden_dim_rnn
-        self.n_classes = character_set_size
         # The output should be the same size as the hidden state size of RNN
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
         # ImageToHiddenState
+        self.n_classes = self.vocabulary_size
 
-        if pretrained_embeddings:
-            # TODO HACK: improve this constructor api
-            self.embeddings = pretrained_embeddings
-            self.embedding_dim = pretrained_embeddings.embedding_dim
+        if cnn_model == "vgg16":
+            print("Using vgg16...")
+            self.image_cnn = VGG16Module(hidden_dim_cnn)
+        elif cnn_model == "mobilenet":
+            print("Using mobilenet...")
+            self.image_cnn = MobileNetModule(hidden_dim_cnn)
         else:
-            self.embeddings = nn.Embedding(num_embeddings=self.character_set_size,
-                                embedding_dim=self.embedding_dim, padding_idx=padding_idx)
+            print("Using default cnn...")
+            self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
 
-        self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
         self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
         self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, inputs):
-        # WRITE CODE HERE
-
         imgs, labels = inputs
         current_device = str(imgs.device)
         batch_size = len(imgs)
@@ -246,6 +293,38 @@ class CocoDatasetWrapper(Dataset):
         self.vectorizer = vectorizer
 
     @classmethod
+    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
+        train_file = hparams[dataset_name]
+        if image_dir == None:
+            image_dir = os.path.join(hparams['root'], train_file)
+        else:
+            image_dir = os.path.join(hparams['root'], image_dir)
+        caption_file_path = prep.get_cleaned_captions_path(hparams, train_file)
+        print("Image dir:", image_dir)
+        print("Caption file path:", caption_file_path)
+
+        # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
+        stats_rounding = hparams["rounding"]
+        rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
+                     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
+        rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
+        rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
+        # TODO create a testing split, there is only training and val currently...
+        coco_train_set = dset.CocoDetection(root=image_dir,
+                                            annFile=caption_file_path,
+                                            transform=transforms.Compose([prep.CenteringPad(),
+                                                                          transforms.Resize((640, 640)),
+                                                                          # transforms.CenterCrop(IMAGE_SIZE),
+                                                                          transforms.ToTensor(),
+                                                                          transforms.Normalize(rgb_mean, rgb_sd)])
+                                            )
+
+        coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
+        batch_size = hparams["batch_size"][0]
+        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size)
+        return train_loader
+
+    @classmethod
     def transform_batch_for_training(cls, batch, device="cpu"):
         """
 
@@ -270,53 +349,294 @@ class CocoDatasetWrapper(Dataset):
         for i, caption_reviewer in enumerate(captions):
                 c = self.vectorizer.vectorize(captions[i]["caption"])
                 vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
-        return image, captions, (vectorized_captions_in,vectorized_captions_out)
+        # only use 5 captions to be able to use faster vectorized operations
+        # avoid exceptions in the collate function in the fetch part of the dataloader
+        return image, captions[:5], (vectorized_captions_in[:5],vectorized_captions_out[:5])
 
-class CocoEvalBleuOnly(COCOEvalCap):
-    def evaluate(self):
-        imgIds = self.params['image_id']
-        # imgIds = self.coco.getImgIds()
-        gts = {}
-        res = {}
-        for imgId in imgIds:
-            gts[imgId] = self.coco.imgToAnns[imgId]
-            res[imgId] = self.cocoRes.imgToAnns[imgId]
+class BleuScorer(object):
 
-        # =================================================
-        # Set up scorers
-        # =================================================
-        print('tokenization...')
-        tokenizer = PTBTokenizer()
-        gts  = tokenizer.tokenize(gts)
-        res = tokenizer.tokenize(res)
+    @classmethod
+    def evaluate_gold(cls,hparams, train_loader, idx_break=-1):
 
-        # =================================================
-        # Set up scorers
-        # =================================================
-        print('setting up scorers...')
+        # NEVER do [{}]* 5!!!!
+        # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
+        hypothesis = [{} for _ in range(5)]
+        references = [{} for _ in range(5)]
+        for idx, current_batch in enumerate(train_loader):
+            imgs, \
+            annotations, training_labels = current_batch
+            for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
+                # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
+                # deterministic...
+                for c in list(combinations(range(5), 4)):
+                    for hypothesis_idx in range(5):
+                        if hypothesis_idx not in c:
+                            hypothesis[hypothesis_idx][image_id.item()] = [annotations[hypothesis_idx]["caption"][sample_idx]]
+                            references[hypothesis_idx][image_id.item()] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in list(c)]
+            if idx == idx_break:
+                # useful for debugging
+                break
+
+        scores = []
+        for reference, hypothesis in list(zip(references, hypothesis)):
+            scores.append(cls.calc_scores(reference, hypothesis))
+
+        pd_score = pd.DataFrame(scores).mean()
+
+        if hparams["save_eval_results"]:
+            dt = datetime.now(tz=None)
+            timestamp = dt.strftime(hparams["timestamp_prefix"])
+            filepath = os.path.join(hparams["model_storage"], timestamp+"_bleu_gold.json")
+            prep.create_json_config(pd_score.to_dict(), filepath)
+
+        return pd_score
+
+    @classmethod
+    def evaluate(cls, hparams, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1):
+        # there is no other mthod to retrieve the current device on a model...
+        device = next(network_model.parameters()).device
+        hypothesis = {}
+        references = {}
+        for idx, current_batch in enumerate(train_loader):
+            imgs, annotations, training_labels = current_batch
+            for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
+                _id = image_id.item()
+                starting_token = c_vectorizer.create_starting_sequence().to(device)
+                img = imgs[idx].unsqueeze(dim=0).to(device)
+                caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
+                input_for_prediction = (img, caption)
+
+                #TODO plug the beam search prediction
+                predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
+                current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
+                hypothesis[_id] = [current_hypothesis]
+                # packs all 5 labels for one image with the corresponding image id
+                references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
+                                               range(5)]
+                if hparams["print_prediction"]:
+                    print("\n#########################")
+                    print("image", _id)
+                    print("prediction", hypothesis[_id])
+                    print("gold captions", references[_id])
+
+            if idx == idx_break:
+                # useful for debugging
+                break
+        score = cls.calc_scores(references, hypothesis)
+        pd_score = pd.DataFrame([score])
+
+        if hparams["save_eval_results"]:
+            dt = datetime.now(tz=None)
+            timestamp = dt.strftime(hparams["timestamp_prefix"])
+            filepath = os.path.join(hparams["model_storage"], timestamp+"_bleu_prediction.json")
+            filepath_2 = os.path.join(hparams["model_storage"], timestamp+"_bleu_prediction_scores.json")
+            prep.create_json_config({ k:(hypothesis[k],references[k]) for k in hypothesis.keys()}, filepath)
+            prep.create_json_config([score], filepath_2)
+
+        """
+        this code delivers the same results but we can't calculate a reasonable score on the 
+        predefined labels to compare against gold (we always get 100%...)
+        res looks like this : [{"image_id": 139, "caption": "a woman posing for the camera standing on skis"}, ... ]
+        from pycocoevalcap.eval import COCOEvalCap
+        coco_cap = COCO(caption_file_path)
+        #imgIds = sorted([ batch_one[1][0]["image_id"][i].item() for i in range(batch_size)])
+        imgIds = sorted([ id for id in hypothesis.keys()])
+        res = [ {"image_id": k, "caption": hypothesis[k][0]} for k in sorted(hypothesis.keys())]
+        prep.create_json_config(res, "./res_.json", 0)
+        coco_res = coco_cap.loadRes("./res_.json")
+        #CocoEvalBleuOnly is a copy Paste of the CocoEval class but where we only put BleuScorer...
+        cocoEval = model.CocoEvalBleuOnly(coco_cap, coco_res)
+        cocoEval.params['image_id'] = imgIds
+        s = cocoEval.evaluate()
+        """
+
+        return pd_score
+
+    @classmethod
+    def calc_scores(cls, ref, hypo):
+
+        """
+        Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
+        ref, dictionary of reference sentences (id, sentence)
+        hypo, dictionary of hypothesis sentences (id, sentence)
+        score, dictionary of scores
+        """
         scorers = [
-            (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
-            (Rouge(), "ROUGE_L"),
-            (Cider(), "CIDEr")
+            (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"])
         ]
-
-        # =================================================
-        # Compute scores
-        # =================================================
+        final_scores = {}
         for scorer, method in scorers:
-            print('computing %s score...'%(scorer.method()))
-            score, scores = scorer.compute_score(gts, res)
-            if type(method) == list:
-                for sc, scs, m in zip(score, scores, method):
-                    self.setEval(sc, m)
-                    self.setImgToEvalImgs(scs, gts.keys(), m)
-                    print("%s: %0.3f"%(m, sc))
+            score, scores = scorer.compute_score(ref, hypo)
+            if type(score) == list:
+                for m, s in zip(method, score):
+                    final_scores[m] = s
             else:
-                self.setEval(score, method)
-                self.setImgToEvalImgs(scores, gts.keys(), method)
-                print("%s: %0.3f"%(method, score))
-        self.setEvalImgs()
+                final_scores[method] = score
+        return final_scores
 
+    @classmethod
+    def perform_whole_evaluation(cls, hparams, loader, network, c_vectorizer, break_training_loop_idx=3):
+        print("Run complete evaluation for:", loader.__repr__())
+        train_bleu_score = BleuScorer.evaluate(hparams, loader, network, c_vectorizer,
+                                                     idx_break=break_training_loop_idx)
+        print("Unweighted Current Bleu Scores:\n", train_bleu_score)
+        train_bleu_score_pd =train_bleu_score.to_numpy().reshape(-1)
+        print("Weighted Current Bleu Scores:\n", train_bleu_score_pd.mean())
+        print("Geometric Mean Current Bleu Score:\n", gmean(train_bleu_score_pd))
+        bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx)
+        bleu_score_human_average_np = bleu_score_human_average.to_numpy().reshape(-1)
+        print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
+        print("Weighted Gold Bleu Scores:\n", bleu_score_human_average_np.mean())
+        print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
+
+
+def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_width = 3):
+    """
+    WIP implementation of beam search
+    """
+
+    seq_len = 10#input_for_prediction[1].shape[2]
+    device = next(model.parameters()).device
+
+    image, vectorized_seq = input_for_prediction
+
+    # first dimension 0 keeps indices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
+    track_best = torch.zeros((3, beam_width, seq_len)).to(device)
+    model.eval()
+
+    # Do first prediction, store #beam_width best
+    pred = model(input_for_prediction)
+    first_predicted = torch.topk(pred[0][0], beam_width)
+    for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
+        track_best[0,i,0] = index.item()
+        track_best[1,i,0] = log_prob
+        track_best[2,i,0] = -1
+
+        #print(c_vectorizer.get_vocab().lookup_index(index.item()))
+
+    #print("First:", first_predicted)        
+
+    vocab_size = len(c_vectorizer.get_vocab())
+    current_predictions = torch.zeros((beam_width * vocab_size))
+
+    # For every sequence index consider all previous beam_width possibilities
+    for idx in range(1, seq_len):
+        for k in range(beam_width):
+            i = track_best[0,k,idx-1]
+            p = track_best[1,k,idx-1]
+
+            # Build new sequence with previous index
+            new_seq = vectorized_seq.detach().clone()
+            new_seq[0][0][idx] = i
+
+            # Predict new indices and rank beam_width best
+            new_input = (image, new_seq)
+            new_prediction = model(new_input)[0][idx] + p
+
+            del new_seq
+
+            # Store prediction
+            current_predictions[k*vocab_size:(k+1)*vocab_size] = new_prediction[:]
+
+        # Rank all predictions
+        new_predicted = torch.topk(current_predictions, beam_width)
+
+        # Find topk across all beam_width * vocab_size predictions
+        for i, (log_prob, index) in enumerate(zip(new_predicted.values, new_predicted.indices)):
+            # Find the correct word
+            k_idx = index // vocab_size
+            word_idx = index % vocab_size
+
+            track_best[0,i,idx] = word_idx
+            track_best[1,i,idx] = log_prob
+            track_best[2,i,idx] = k_idx
+            
+            #print(idx, k_idx, c_vectorizer.get_vocab().lookup_index(word_idx.item()))
+
+    # backtrack best result
+    last_col = track_best[1,:,seq_len-1]
+    best_k = torch.argmax(last_col, dim=0)
+    #print("First best", best_k)
+    
+    indices = torch.zeros(seq_len)
+    #indices[seq_len-1] = track_best[0,best_k, ]
+
+    for idx in reversed(range(seq_len)):
+        best_k = best_k.long()
+        indices[idx] = track_best[0,best_k,idx]
+        best_k = track_best[2,best_k,idx]
+
+    #for index in indices:
+    #    print(c_vectorizer.get_vocab().lookup_index(index.item()))
+
+    #print(vectorized_seq.shape, indices.shape)
+
+    # TODO: sample track_best and check if new_predicted works correctly
+    return indices.unsqueeze(0).unsqueeze(0)
+
+def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_number= 1, found_sequences = 0):
+    """
+    Only for dev purposes, allow us to get some outputs.
+    :param model:
+    :param input_for_prediction:
+    :param end_token_idx:
+    :param prediction_number:
+    :param found_sequences:
+    :return:
+    """
+    seq_len = input_for_prediction[1].shape[2]
+    device = next(model.parameters()).device
+    image, vectorized_seq = input_for_prediction
+    # first dimension 0 keeps indices, 1 keeps probaility
+    track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
+    model.eval()
+    #TODO implement the whole sequence prediction using beam search...
+    prediction_number = prediction_number - found_sequences
+    for idx in range(seq_len - 1):
+        pred = model(input_for_prediction)
+        first_predicted = torch.topk(pred[0][idx], prediction_number)
+        losses = first_predicted.values
+        indices = first_predicted.indices
+        idx_found_sequences = indices[indices == end_token_idx]
+        found_sequences = idx_found_sequences.sum()
+        vectorized_seq[0][0][idx+1] = indices[0]
+        input_for_prediction = (image, vectorized_seq)
+        if found_sequences > 0:
+            break
+    return vectorized_seq
+
+
+def create_embedding(hparams, c_vectorizer, padding_idx=0):
+    vocabulary_size = len(c_vectorizer.get_vocab())
+    if(hparams["use_glove"]):
+        print("Loading glove vectors...")
+        glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
+        glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
+        glove_embedding = np.zeros((vocabulary_size, glove_model.vector_size))
+        token2idx = {word: glove_model.vocab[word].index for word in glove_model.vocab.keys()}
+        for word in c_vectorizer.get_vocab()._token_to_idx.keys():
+            i = c_vectorizer.get_vocab().lookup_token(word)
+            if word in token2idx:
+                glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
+            else:
+                # From NLP with pytorch, it should be better to init the unknown tokens
+                embedding_i = torch.ones(1, glove_model.vector_size)
+                torch.nn.init.xavier_uniform_(embedding_i)
+                glove_embedding[i, :] = embedding_i
+
+        embed_size = glove_model.vector_size
+        if hparams["embedding_dim"] < embed_size:
+            embed_size = hparams["embedding_dim"]
+
+        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_embedding[:, :embed_size]))
+        # TODO: not sure if we should not start with the pretrained but still be learning with our
+        # training => transfer learning...
+        embedding.weight.requires_grad =  hparams["improve_embedding"]
+        print("GloVe embedding size:", glove_model.vector_size)
+    else:
+        nn.Embedding(num_embeddings=vocabulary_size,
+                     embedding_dim=hparams["embedding_dim"], padding_idx=padding_idx)
+    return embedding
 
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
@@ -424,57 +744,6 @@ def generate_batches(dataset, batch_size, shuffle=True,
             out_data_dict[name] = data_dict[name].to(device)
         yield out_data_dict
 
-class GloVeVectorizer:
-    def __init__(self, glove_model, c_vectorizer):
-        self.glove_model = glove_model
-        self.c_vectorizer = c_vectorizer
-        self.max_sequence_length = c_vectorizer.max_sequence_length
-
-        # Convert tokens into glove indices
-        # token -> glove index -> glove vector
-        token2idx = {}
-        for word in self.glove_model.vocab.keys():
-            token2idx[word] = self.glove_model.vocab[word].index
-
-        self.glove_vocab = SequenceVocabulary(token2idx)
-        self.default_vocab = self.c_vectorizer.get_vocab()
-        self.glove_vectorizer = CaptionVectorizer(self.glove_vocab, c_vectorizer.max_sequence_length)
-
-        # Create translation index from glove to default index encoding
-        self.glove2default = {}
-        
-        # Translate glove to default
-        for token in self.glove_vocab._token_to_idx.keys():
-            idx = self.default_vocab.unk_index
-            if token in self.default_vocab._token_to_idx:
-                idx = self.default_vocab.lookup_token(token)
-            
-            glove_idx = self.glove_vocab.lookup_token(token)
-            self.glove2default[glove_idx] = idx
-
-    def get_vocab(self):
-        return self.glove_vocab
-
-    def get_target_vocab(self):
-        return self.default_vocab
-
-    def vectorize(self, title):
-        # Maps the output sequence from glove encoding to default index encoding
-        x_vector, y_vector = self.glove_vectorizer.vectorize(title)
-
-        #print(y_vector)
-        y_vector = np.vectorize(self.glove2default.__getitem__)(y_vector)
-        #print(y_vector)
-        return x_vector, y_vector
-
-    def create_starting_sequence(self):
-        return self.glove_vectorizer.create_starting_sequence()
-
-    @classmethod
-    def from_dataframe(cls, glove_model, captions):
-        c_vectorizer = CaptionVectorizer.from_dataframe(captions)
-        return cls(glove_model, c_vectorizer)
-
 class SequenceVocabulary(Vocabulary):
     def __init__(self, token_to_idx=None, unk_token="<UNK>",
                  mask_token="<MASK>", begin_seq_token="<BEGIN>",
@@ -516,3 +785,21 @@ class SequenceVocabulary(Vocabulary):
             return self._token_to_idx.get(token, self.unk_index)
         else:
             return self._token_to_idx[token]
+
+
+def reminder_rnn_size():
+    rnn_layer = 1
+    feature_size = 30
+    hidden_size = 20
+    seq = 3
+    batch_size = 5
+
+    # self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True, dev)
+    rnn = nn.LSTM(feature_size, hidden_size, rnn_layer, batch_first=True)
+    input = torch.randn(batch_size, seq, feature_size)
+    h0 = torch.randn(rnn_layer, batch_size, hidden_size)
+    c0 = torch.randn(rnn_layer, batch_size, hidden_size)
+    output, (hn, cn) = rnn(input, (h0, c0))
+    print(output.shape)
+    print(hn.shape)
+
