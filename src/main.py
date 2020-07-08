@@ -64,7 +64,7 @@ def main():
 
     ## Generate output folder if non-existent
     model_dir = hparams["model_storage"]
-    model_name = hparams["cnn_model"]+"_"+hparams["model_name"]
+    model_name = model.create_model_name(hparams)
     if not os.path.isdir(model_dir):
         try:
             os.mkdir(model_dir)
@@ -127,7 +127,7 @@ def main():
                 total_loss += loss.item()
                 print("Loss:", loss.item(), "Epoch:", epoch+1)
                 if hparams["save_pending_model"]:
-                    temp_model = os.path.join(model_dir, "epoch_"+str(epoch+1) + "_" + model_name)
+                    temp_model = os.path.join(model_dir, f"epoch_{str(epoch+1)}_{model_name}")
                     torch.save(network.state_dict(), temp_model)
 
         end = timer()

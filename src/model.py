@@ -787,6 +787,18 @@ class SequenceVocabulary(Vocabulary):
         else:
             return self._token_to_idx[token]
 
+def create_model_name(hparams):
+    """
+    Creates a model name that encodes the training parameters
+    :param hparams:
+    :return:
+    """
+
+    root_name, extension = hparams["model_name"].split(".")
+    model_name = f"{hparams['cnn_model']}_{root_name}_cnn{str(hparams['hidden_dim_cnn'])}_rnn{str(hparams['hidden_dim_rnn'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_do{str(hparams['drop_out_prob'])}.{extension}"
+        
+    return model_name
+
 
 def reminder_rnn_size():
     rnn_layer = 1
