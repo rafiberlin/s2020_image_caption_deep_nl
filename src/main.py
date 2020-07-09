@@ -127,14 +127,18 @@ def main():
                 # Warning if we are unable to learn, use the contiguous function of the tensor
                 # it insures that the sequence is not messed up during reshape
                 loss = loss_function(log_prediction, out_captions)
-                total_loss = loss.item()
+                total_loss += loss.item()
                 loss.backward()
                 # Use optimizer to take gradient step
                 optimizer.step()
                 #for dev purposes only
                 if idx == break_training_loop_idx:
                     break
-
+                # hopefully helping for garbage collection an freeing up ram more quickly for GPU
+                del current_batch
+                del images
+                del in_captions
+                del out_captions
             if (epoch+1) % hparams["training_report_frequency"] == 0:
                 print("Total Loss:", total_loss, "Epoch:", epoch+1)
                 if hparams["save_pending_model"]:
