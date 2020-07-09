@@ -399,9 +399,9 @@ class BleuScorer(object):
         device = next(network_model.parameters()).device
         hypothesis = {}
         references = {}
-        for idx, current_batch in enumerate(train_loader):
+        for idx, current_batch in tqdm(enumerate(train_loader)):
             imgs, annotations, training_labels = current_batch
-            for sample_idx, image_id in tqdm(enumerate(annotations[0]["image_id"])):
+            for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 _id = image_id.item()
                 starting_token = c_vectorizer.create_starting_sequence().to(device)
                 img = imgs[sample_idx].unsqueeze(dim=0).to(device)
