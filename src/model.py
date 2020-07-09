@@ -391,7 +391,7 @@ class BleuScorer(object):
             filepath = os.path.join(hparams["model_storage"], timestamp+"_bleu_gold.json")
             prep.create_json_config(pd_score.to_dict(), filepath)
 
-        return pd_score, pd.DataFrame(bleu_diffs)
+        return pd_score
 
     @classmethod
     def evaluate(cls, hparams, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1):
