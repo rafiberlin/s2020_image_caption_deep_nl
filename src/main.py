@@ -104,8 +104,8 @@ def main():
         # --- training loop ---
         torch.cuda.empty_cache()
         network.train()
-        total_loss = 0
         for epoch in tqdm(range(hparams["num_epochs"])):
+            total_loss = 0
             for idx, current_batch in enumerate(train_loader):
                 images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch, device)
                 optimizer.zero_grad()
@@ -116,6 +116,7 @@ def main():
                 # Warning if we are unable to learn, use the contiguous function of the tensor
                 # it insures that the sequence is not messed up during reshape
                 loss = loss_function(log_prediction, out_captions)
+                total_loss = loss.item()
                 loss.backward()
                 # Use optimizer to take gradient step
                 optimizer.step()
@@ -124,8 +125,7 @@ def main():
                     break
 
             if (epoch+1) % hparams["training_report_frequency"] == 0:
-                total_loss += loss.item()
-                print("Loss:", loss.item(), "Epoch:", epoch+1)
+                print("Total Loss:", total_loss, "Epoch:", epoch+1)
                 if hparams["save_pending_model"]:
                     temp_model = os.path.join(model_dir, f"epoch_{str(epoch+1)}_{model_name}")
                     torch.save(network.state_dict(), temp_model)
