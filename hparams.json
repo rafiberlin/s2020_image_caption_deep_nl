@@ -37,6 +37,7 @@
    "save_eval_results" : true,
    "drop_out_prob" : 0.1,
    "training_report_frequency" : 20,
-   "save_pending_model" : true,
-   "last_saved_model" : null
+   "save_pending_model" : false,
+   "last_saved_model" : null,
+   "use_tensorboard" : false
 }

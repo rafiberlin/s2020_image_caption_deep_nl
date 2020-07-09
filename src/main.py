@@ -3,12 +3,14 @@ from tqdm import tqdm
 import torch
 import torch.utils.data
 import os
+from torchvision.utils import make_grid
 import torch.nn as nn
 import torch.optim as optim
 from timeit import default_timer as timer
 import model
 import preprocessing as prep
 import argparse
+from torch.utils.tensorboard import SummaryWriter
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
 GLOVE_SCRIPT = "./util/glove_conv.py"
@@ -96,23 +98,31 @@ def main():
     break_training_loop_idx = max(int(len(train_loader)*break_training_loop_percentage/100) - 1, 0)
     #break_val_loop_idx = max(int(len(val_loader)/batch_size*break_training_loop_percentage/100) - 1, 0)
     #break_test_loop_idx = max(int(len(test_loader)/batch_size*break_training_loop_percentage/100) - 1, 0)
-
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
         start = timer()
+        tb = SummaryWriter(model_name)
+        if hparams["use_tensorboard"]:
+            batch = next(iter(train_loader))
+            grid = make_grid(batch[0])
+            tb.add_image("images", grid)
+            images, in_captions, out_captions  = model.CocoDatasetWrapper.transform_batch_for_training(batch, device)
+            tb.add_graph(network, ((images, in_captions)))
         # --- training loop ---
         torch.cuda.empty_cache()
         network.train()
+
         for epoch in tqdm(range(hparams["num_epochs"])):
             total_loss = 0
             for idx, current_batch in enumerate(train_loader):
                 images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch, device)
                 optimizer.zero_grad()
+
                 # flatten all caption , flatten all batch and sequences, to make its category comparable
                 # for the loss function
                 out_captions = out_captions.reshape(-1)
-                log_prediction = network((images, in_captions)).reshape(out_captions.shape[0], -1)
+                log_prediction = network(images, in_captions).reshape(out_captions.shape[0], -1)
                 # Warning if we are unable to learn, use the contiguous function of the tensor
                 # it insures that the sequence is not messed up during reshape
                 loss = loss_function(log_prediction, out_captions)
@@ -129,11 +139,13 @@ def main():
                 if hparams["save_pending_model"]:
                     temp_model = os.path.join(model_dir, f"epoch_{str(epoch+1)}_{model_name}")
                     torch.save(network.state_dict(), temp_model)
-
+                if hparams["use_tensorboard"]:
+                    tb.add_scalar("Total Loss", total_loss, epoch+1)
         end = timer()
         print("Overall Learning Time", end - start)
         print("Total Loss", total_loss)
         torch.save(network.state_dict(), model_path)
+        tb.close()
 
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx)
     #model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_test_loop_idx, hparams["print_prediction"])

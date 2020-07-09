@@ -151,8 +151,7 @@ class LSTMModel(nn.Module):
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
         self.drop_layer = nn.Dropout(p=drop_out_prob)
 
-    def forward(self, inputs):
-        imgs, labels = inputs
+    def forward(self, imgs, labels):
         current_device = str(imgs.device)
         batch_size = len(imgs)
         image_hidden = self.image_cnn(imgs)
@@ -507,7 +506,7 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
     model.eval()
 
     # Do first prediction, store #beam_width best
-    pred = model(input_for_prediction)
+    pred = model(image, vectorized_seq)
     first_predicted = torch.topk(pred[0][0], beam_width)
     for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
         track_best[0,i,0] = index.item()
@@ -595,7 +594,7 @@ def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_nu
     #TODO implement the whole sequence prediction using beam search...
     prediction_number = prediction_number - found_sequences
     for idx in range(seq_len - 1):
-        pred = model(input_for_prediction)
+        pred = model(image, vectorized_seq)
         first_predicted = torch.topk(pred[0][idx], prediction_number)
         losses = first_predicted.values
         indices = first_predicted.indices
