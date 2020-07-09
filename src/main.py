@@ -102,8 +102,9 @@ def main():
         loss_function = nn.NLLLoss().to(device)
         optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
         start = timer()
-        tb = SummaryWriter(model_name)
+        tb = None
         if hparams["use_tensorboard"]:
+            tb = SummaryWriter(model_name)
             batch = next(iter(train_loader))
             grid = make_grid(batch[0])
             tb.add_image("images", grid)
@@ -145,7 +146,8 @@ def main():
         print("Overall Learning Time", end - start)
         print("Total Loss", total_loss)
         torch.save(network.state_dict(), model_path)
-        tb.close()
+        if tb:
+            tb.close()
 
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx)
     #model.BleuScorer.perform_whole_evaluation(test_loader, network, c_vectorizer, break_test_loop_idx, hparams["print_prediction"])
