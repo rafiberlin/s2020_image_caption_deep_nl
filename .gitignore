@@ -35,5 +35,7 @@ _playground.py
 *.cb
 *.cb2
 .*.lb
+#Tensorboard ignore part
 /src/OK/
 /src/*network*
+/runs
