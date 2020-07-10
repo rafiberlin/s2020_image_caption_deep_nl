@@ -123,6 +123,7 @@ class LSTMModel(nn.Module):
                  pretrained_embeddings,
                  rnn_layers=1,
                  cnn_model=None,
+                 rnn_model="lstm",
                  drop_out_prob=0.2
                  ):
         super(LSTMModel, self).__init__()
@@ -131,6 +132,7 @@ class LSTMModel(nn.Module):
         self.vocabulary_size = self.embeddings.num_embeddings
         self.rnn_layers = rnn_layers
         self.hidden_dim_rnn = hidden_dim_rnn
+        self.rnn_model = rnn_model
         # The output should be the same size as the hidden state size of RNN
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
@@ -146,14 +148,16 @@ class LSTMModel(nn.Module):
         else:
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
-
-        self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
+        if self.rnn_model == "gru":
+            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
+        else:
+            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
         self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
         self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, imgs, labels):
         current_device = str(imgs.device)
-        batch_size = len(imgs)
+        batch_size = imgs.shape[0]
         image_hidden = self.image_cnn(imgs)
         #Image hidden is used to init the hidden states of the lstm cells.
         # it must have the shape (number of layers *time number of direction) * batch size * hidden dim
@@ -169,7 +173,11 @@ class LSTMModel(nn.Module):
         embeds = embeds.reshape((batch_size,-1,self.embedding_dim))
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
         #lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
-        lstm_out, hidden = self.lstm(embeds, (image_hidden, image_hidden))
+
+        if self.rnn_model== "gru":
+            lstm_out, hidden = self.rnn(embeds, image_hidden)
+        else:
+            lstm_out, hidden = self.rnn(embeds, (image_hidden,image_hidden))
 
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
@@ -632,7 +640,7 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
         embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_embedding[:, :embed_size]))
         # TODO: not sure if we should not start with the pretrained but still be learning with our
         # training => transfer learning...
-        embedding.weight.requires_grad =  hparams["improve_embedding"]
+        embedding.weight.requires_grad = hparams["improve_embedding"]
         print("GloVe embedding size:", glove_model.vector_size)
     else:
         nn.Embedding(num_embeddings=vocabulary_size,
@@ -795,7 +803,7 @@ def create_model_name(hparams):
     """
 
     root_name, extension = hparams["model_name"].split(".")
-    model_name = f"{hparams['cnn_model']}_{root_name}_cnn{str(hparams['hidden_dim_cnn'])}_rnn{str(hparams['hidden_dim_rnn'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_bs{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}.{extension}"
+    model_name = f"{hparams['cnn_model']}_{hparams['rnn_model']}_{root_name}_cnn{str(hparams['hidden_dim_cnn'])}_rnn{str(hparams['hidden_dim_rnn'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_bs{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}.{extension}"
         
     return model_name
 
