@@ -19,12 +19,14 @@ from pycocoevalcap.bleu.bleu import Bleu
 from scipy.stats.mstats import gmean
 from tqdm import tqdm
 
+
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
     TODO: make the other parameters configurable like num channel kernel size, strides... it works only with 640 by 640 images now
 
     """
+
     def __init__(self, output_dim=120):
         super(ImageToHiddenState, self).__init__()
 
@@ -46,6 +48,7 @@ class ImageToHiddenState(nn.Module):
         t = F.relu(t)
 
         return t
+
 
 class VGG16Module(nn.Module):
     """
@@ -72,6 +75,7 @@ class VGG16Module(nn.Module):
         y = self.linear(y)
         return y
 
+
 class MobileNetModule(nn.Module):
     """
 
@@ -93,8 +97,8 @@ class MobileNetModule(nn.Module):
         y = self.linear(y)
         return y
 
-class LSTMModel(nn.Module):
 
+class LSTMModel(nn.Module):
     """
     Results: (NO sorting per length during training needed)
 
@@ -159,25 +163,25 @@ class LSTMModel(nn.Module):
         current_device = str(imgs.device)
         batch_size = imgs.shape[0]
         image_hidden = self.image_cnn(imgs)
-        #Image hidden is used to init the hidden states of the lstm cells.
+        # Image hidden is used to init the hidden states of the lstm cells.
         # it must have the shape (number of layers *time number of direction) * batch size * hidden dim
         # size we just do 1 layer 1 direction, unsqueeze(0) is fine
         image_hidden = image_hidden.unsqueeze(dim=0)
         # when image_hidden needs to be provided for lstm,
         # we need to init the memory cell as well
-        lstm_cell_initial_state = torch.zeros(image_hidden.shape , dtype=torch.float, device=current_device)
+        lstm_cell_initial_state = torch.zeros(image_hidden.shape, dtype=torch.float, device=current_device)
         embeds = self.embeddings(labels)
         # for a given sample, it "flattens" all the captions into the second dimension
         # we get from a 4 dimension shape: batch_size * number of captions * caption length * embdeing dimension
         # to a 3 dimension shape batch_size * (number of captions * caption length) * embdeing dimension
-        embeds = embeds.reshape((batch_size,-1,self.embedding_dim))
+        embeds = embeds.reshape((batch_size, -1, self.embedding_dim))
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
-        #lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
+        # lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
 
-        if self.rnn_model== "gru":
+        if self.rnn_model == "gru":
             lstm_out, hidden = self.rnn(embeds, image_hidden)
         else:
-            lstm_out, hidden = self.rnn(embeds, (image_hidden,image_hidden))
+            lstm_out, hidden = self.rnn(embeds, (image_hidden, image_hidden))
 
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
@@ -187,6 +191,7 @@ class LSTMModel(nn.Module):
         # squeeze make out.shape to batch_size times num_classes
         out = F.log_softmax(classes, dim=2)
         return out
+
 
 class Vocabulary(object):
     """Class to process text and extract vocabulary for mapping"""
@@ -293,9 +298,10 @@ class Vocabulary(object):
     def __len__(self):
         return len(self._token_to_idx)
 
+
 class CocoDatasetWrapper(Dataset):
 
-    #TODO impose fixed length of the longest caption when vectorizing and test batch retrieval
+    # TODO impose fixed length of the longest caption when vectorizing and test batch retrieval
     def __init__(self, cocodaset, vectorizer):
         self.cocodaset = cocodaset
         self.vectorizer = vectorizer
@@ -342,7 +348,6 @@ class CocoDatasetWrapper(Dataset):
         """
         return batch[0].to(device), batch[2][0].to(device), batch[2][1].to(device)
 
-
     def __len__(self):
         return self.cocodaset.__len__()
 
@@ -352,19 +357,20 @@ class CocoDatasetWrapper(Dataset):
         num_captions = len(captions)
         # self.vectorizer.max_sequence_length - 1 because in label and out labels are shifted by 1 to match
         # for example, if the last real word in a caption is cat, the expected output caption is <end>...
-        vectorized_captions_in = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1) , dtype=torch.long)
-        vectorized_captions_out = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1) , dtype=torch.long)
+        vectorized_captions_in = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1), dtype=torch.long)
+        vectorized_captions_out = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1), dtype=torch.long)
         for i, caption_reviewer in enumerate(captions):
-                c = self.vectorizer.vectorize(captions[i]["caption"])
-                vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
+            c = self.vectorizer.vectorize(captions[i]["caption"])
+            vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
         # only use 5 captions to be able to use faster vectorized operations
         # avoid exceptions in the collate function in the fetch part of the dataloader
-        return image, captions[:5], (vectorized_captions_in[:5],vectorized_captions_out[:5])
+        return image, captions[:5], (vectorized_captions_in[:5], vectorized_captions_out[:5])
+
 
 class BleuScorer(object):
 
     @classmethod
-    def evaluate_gold(cls,hparams, train_loader, idx_break=-1):
+    def evaluate_gold(cls, hparams, train_loader, idx_break=-1):
 
         # NEVER do [{}]* 5!!!!
         # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
@@ -379,8 +385,10 @@ class BleuScorer(object):
                 for c in list(combinations(range(5), 4)):
                     for hypothesis_idx in range(5):
                         if hypothesis_idx not in c:
-                            hypothesis[hypothesis_idx][image_id.item()] = [annotations[hypothesis_idx]["caption"][sample_idx]]
-                            references[hypothesis_idx][image_id.item()] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in list(c)]
+                            hypothesis[hypothesis_idx][image_id.item()] = [
+                                annotations[hypothesis_idx]["caption"][sample_idx]]
+                            references[hypothesis_idx][image_id.item()] = [
+                                annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in list(c)]
             if idx == idx_break:
                 # useful for debugging
                 break
@@ -389,13 +397,12 @@ class BleuScorer(object):
         for ref, hyp in list(zip(references, hypothesis)):
             scores.append(cls.calc_scores(ref, hyp))
 
-
         pd_score = pd.DataFrame(scores).mean()
 
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp+"_bleu_gold.json")
+            filepath = os.path.join(hparams["model_storage"], timestamp + "_bleu_gold.json")
             prep.create_json_config(pd_score.to_dict(), filepath)
 
         return pd_score
@@ -415,13 +422,13 @@ class BleuScorer(object):
                 caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
 
-                #TODO plug the beam search prediction
+                # TODO plug the beam search prediction
                 predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
                 current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
                 hypothesis[_id] = [current_hypothesis]
                 # packs all 5 labels for one image with the corresponding image id
                 references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
-                                               range(5)]
+                                   range(5)]
                 if hparams["print_prediction"]:
                     print("\n#########################")
                     print("image", _id)
@@ -437,9 +444,9 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp+"_bleu_prediction.json")
-            filepath_2 = os.path.join(hparams["model_storage"], timestamp+"_bleu_prediction_scores.json")
-            prep.create_json_config({ k:(hypothesis[k],references[k]) for k in hypothesis.keys()}, filepath)
+            filepath = os.path.join(hparams["model_storage"], timestamp + "_bleu_prediction.json")
+            filepath_2 = os.path.join(hparams["model_storage"], timestamp + "_bleu_prediction_scores.json")
+            prep.create_json_config({k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
             prep.create_json_config([score], filepath_2)
 
         """
@@ -487,9 +494,9 @@ class BleuScorer(object):
     def perform_whole_evaluation(cls, hparams, loader, network, c_vectorizer, break_training_loop_idx=3):
         print("Run complete evaluation for:", loader.__repr__())
         train_bleu_score = BleuScorer.evaluate(hparams, loader, network, c_vectorizer,
-                                                     idx_break=break_training_loop_idx)
+                                               idx_break=break_training_loop_idx)
         print("Unweighted Current Bleu Scores:\n", train_bleu_score)
-        train_bleu_score_pd =train_bleu_score.to_numpy().reshape(-1)
+        train_bleu_score_pd = train_bleu_score.to_numpy().reshape(-1)
         print("Weighted Current Bleu Scores:\n", train_bleu_score_pd.mean())
         print("Geometric Mean Current Bleu Score:\n", gmean(train_bleu_score_pd))
         bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx)
@@ -499,12 +506,12 @@ class BleuScorer(object):
         print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
 
 
-def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_width = 3):
+def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_width=3):
     """
     WIP implementation of beam search
     """
 
-    seq_len = 10#input_for_prediction[1].shape[2]
+    seq_len = 10  # input_for_prediction[1].shape[2]
     device = next(model.parameters()).device
 
     image, vectorized_seq = input_for_prediction
@@ -517,13 +524,13 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
     pred = model(image, vectorized_seq)
     first_predicted = torch.topk(pred[0][0], beam_width)
     for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
-        track_best[0,i,0] = index.item()
-        track_best[1,i,0] = log_prob
-        track_best[2,i,0] = -1
+        track_best[0, i, 0] = index.item()
+        track_best[1, i, 0] = log_prob
+        track_best[2, i, 0] = -1
 
-        #print(c_vectorizer.get_vocab().lookup_index(index.item()))
+        # print(c_vectorizer.get_vocab().lookup_index(index.item()))
 
-    #print("First:", first_predicted)        
+    # print("First:", first_predicted)
 
     vocab_size = len(c_vectorizer.get_vocab())
     current_predictions = torch.zeros((beam_width * vocab_size))
@@ -531,8 +538,8 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
     # For every sequence index consider all previous beam_width possibilities
     for idx in range(1, seq_len):
         for k in range(beam_width):
-            i = track_best[0,k,idx-1]
-            p = track_best[1,k,idx-1]
+            i = track_best[0, k, idx - 1]
+            p = track_best[1, k, idx - 1]
 
             # Build new sequence with previous index
             new_seq = vectorized_seq.detach().clone()
@@ -545,7 +552,7 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
             del new_seq
 
             # Store prediction
-            current_predictions[k*vocab_size:(k+1)*vocab_size] = new_prediction[:]
+            current_predictions[k * vocab_size:(k + 1) * vocab_size] = new_prediction[:]
 
         # Rank all predictions
         new_predicted = torch.topk(current_predictions, beam_width)
@@ -556,34 +563,35 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
             k_idx = index // vocab_size
             word_idx = index % vocab_size
 
-            track_best[0,i,idx] = word_idx
-            track_best[1,i,idx] = log_prob
-            track_best[2,i,idx] = k_idx
-            
-            #print(idx, k_idx, c_vectorizer.get_vocab().lookup_index(word_idx.item()))
+            track_best[0, i, idx] = word_idx
+            track_best[1, i, idx] = log_prob
+            track_best[2, i, idx] = k_idx
+
+            # print(idx, k_idx, c_vectorizer.get_vocab().lookup_index(word_idx.item()))
 
     # backtrack best result
-    last_col = track_best[1,:,seq_len-1]
+    last_col = track_best[1, :, seq_len - 1]
     best_k = torch.argmax(last_col, dim=0)
-    #print("First best", best_k)
-    
+    # print("First best", best_k)
+
     indices = torch.zeros(seq_len)
-    #indices[seq_len-1] = track_best[0,best_k, ]
+    # indices[seq_len-1] = track_best[0,best_k, ]
 
     for idx in reversed(range(seq_len)):
         best_k = best_k.long()
-        indices[idx] = track_best[0,best_k,idx]
-        best_k = track_best[2,best_k,idx]
+        indices[idx] = track_best[0, best_k, idx]
+        best_k = track_best[2, best_k, idx]
 
-    #for index in indices:
+    # for index in indices:
     #    print(c_vectorizer.get_vocab().lookup_index(index.item()))
 
-    #print(vectorized_seq.shape, indices.shape)
+    # print(vectorized_seq.shape, indices.shape)
 
     # TODO: sample track_best and check if new_predicted works correctly
     return indices.unsqueeze(0).unsqueeze(0)
 
-def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_number= 1, found_sequences = 0):
+
+def predict_greedy(model, input_for_prediction, end_token_idx=3, prediction_number=1, found_sequences=0):
     """
     Only for dev purposes, allow us to get some outputs.
     :param model:
@@ -599,7 +607,7 @@ def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_nu
     # first dimension 0 keeps indices, 1 keeps probaility
     track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
     model.eval()
-    #TODO implement the whole sequence prediction using beam search...
+    # TODO implement the whole sequence prediction using beam search...
     prediction_number = prediction_number - found_sequences
     for idx in range(seq_len - 1):
         pred = model(image, vectorized_seq)
@@ -608,7 +616,7 @@ def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_nu
         indices = first_predicted.indices
         idx_found_sequences = indices[indices == end_token_idx]
         found_sequences = idx_found_sequences.sum()
-        vectorized_seq[0][0][idx+1] = indices[0]
+        vectorized_seq[0][0][idx + 1] = indices[0]
         input_for_prediction = (image, vectorized_seq)
         if found_sequences > 0:
             break
@@ -617,7 +625,7 @@ def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_nu
 
 def create_embedding(hparams, c_vectorizer, padding_idx=0):
     vocabulary_size = len(c_vectorizer.get_vocab())
-    if(hparams["use_glove"]):
+    if (hparams["use_glove"]):
         print("Loading glove vectors...")
         glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
         glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
@@ -647,6 +655,7 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
                      embedding_dim=hparams["embedding_dim"], padding_idx=padding_idx)
     return embedding
 
+
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
 
@@ -664,9 +673,10 @@ class CaptionVectorizer(object):
         :return:
         """
         return " ".join([self.caption_vocab._idx_to_token[i.item()] for i in vectorized_input
-                if i.item() not in
-                [self.caption_vocab.begin_seq_index, self.caption_vocab.mask_index, self.caption_vocab.end_seq_index]
-                ])
+                         if i.item() not in
+                         [self.caption_vocab.begin_seq_index, self.caption_vocab.mask_index,
+                          self.caption_vocab.end_seq_index]
+                         ])
 
     def vectorize(self, title):
         """
@@ -689,7 +699,7 @@ class CaptionVectorizer(object):
         # it is a cat <end>
         # Multiplication by mask index insures that we are padding to the right for sequences
         # shorter than the max length caption in the data
-        vector_length = self.max_sequence_length -1
+        vector_length = self.max_sequence_length - 1
 
         x_vector = np.ones(vector_length, dtype=np.int64) * self.caption_vocab.mask_index
         y_vector = np.ones(vector_length, dtype=np.int64) * self.caption_vocab.mask_index
@@ -738,6 +748,7 @@ class CaptionVectorizer(object):
     def to_serializable(self):
         return {'caption_vocab': self.caption_vocab.to_serializable()}
 
+
 def generate_batches(dataset, batch_size, shuffle=True,
                      drop_last=True, device="cpu"):
     """
@@ -745,13 +756,14 @@ def generate_batches(dataset, batch_size, shuffle=True,
       ensure each tensor is on the write device location.
     """
     dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size,
-                            shuffle=shuffle, drop_last=drop_last)
+                                             shuffle=shuffle, drop_last=drop_last)
 
     for data_dict in dataloader:
         out_data_dict = {}
         for name, tensor in data_dict.items():
             out_data_dict[name] = data_dict[name].to(device)
         yield out_data_dict
+
 
 class SequenceVocabulary(Vocabulary):
     def __init__(self, token_to_idx=None, unk_token="<UNK>",
@@ -795,6 +807,7 @@ class SequenceVocabulary(Vocabulary):
         else:
             return self._token_to_idx[token]
 
+
 def create_model_name(hparams):
     """
     Creates a model name that encodes the training parameters
@@ -804,7 +817,7 @@ def create_model_name(hparams):
 
     root_name, extension = hparams["model_name"].split(".")
     model_name = f"{hparams['cnn_model']}_{hparams['rnn_model']}_{root_name}_cnn{str(hparams['hidden_dim_cnn'])}_rnn{str(hparams['hidden_dim_rnn'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_bs{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}.{extension}"
-        
+
     return model_name
 
 
@@ -823,4 +836,3 @@ def reminder_rnn_size():
     output, (hn, cn) = rnn(input, (h0, c0))
     print(output.shape)
     print(hn.shape)
-

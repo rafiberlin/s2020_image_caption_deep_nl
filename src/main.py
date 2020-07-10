@@ -18,8 +18,8 @@ PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1
 
-def main():
 
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--params", help="hparams config file")
     parser.add_argument("--train", action="store_true", help="force training")
@@ -38,9 +38,9 @@ def main():
         with open(GLOVE_SCRIPT) as script_file:
             exec(script_file.read())
     trainset_name = "val"
-    #trainset_name = "test"
+    # trainset_name = "test"
     valset_name = "val"
-    testset_name ="test"
+    testset_name = "test"
     device = hparams["device"]
     if not torch.cuda.is_available():
         print("Warning, only CPU processing available!")
@@ -51,14 +51,14 @@ def main():
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name)
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = None
-    if(hparams["use_padding_idx"]):
+    if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
     embedding = model.create_embedding(hparams, c_vectorizer, padding_idx)
 
     train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
-    #The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    #test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
+    # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
+    # test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     ## Generate output folder if non-existent
@@ -73,8 +73,9 @@ def main():
     print("Model save path:", model_path)
 
     ## Training start
-    network = model.LSTMModel(hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], pretrained_embeddings=embedding, cnn_model=hparams["cnn_model"]).to(device)
-    #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
+    network = model.LSTMModel(hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], pretrained_embeddings=embedding,
+                              cnn_model=hparams["cnn_model"]).to(device)
+    # network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
     start_training = True
     if os.path.isfile(model_path) and not args.train:
         network.load_state_dict(torch.load(model_path))
@@ -89,16 +90,17 @@ def main():
                 print("Load temporary model: ", last_model)
                 network.load_state_dict(torch.load(last_model))
 
-    #Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
+    # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
     break_training_loop_percentage = hparams["break_training_loop_percentage"]
-    break_training_loop_idx = max(int(len(train_loader)*break_training_loop_percentage/100) - 1, 0)
-    #break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
-    #break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
+    break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
+    # break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
+    # break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
     scalar_total_loss = 0
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         if hparams["sgd_momentum"]:
-            optimizer = optim.SGD(params=network.parameters(), momentum=hparams["sgd_momentum"], lr=hparams['lr'], nesterov=True)
+            optimizer = optim.SGD(params=network.parameters(), momentum=hparams["sgd_momentum"], lr=hparams['lr'],
+                                  nesterov=True)
         else:
             optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
 
@@ -109,7 +111,7 @@ def main():
             batch = next(iter(train_loader))
             grid = make_grid(batch[0])
             tb.add_image("images", grid)
-            images, in_captions, out_captions  = model.CocoDatasetWrapper.transform_batch_for_training(batch, device)
+            images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch, device)
             tb.add_graph(network, ((images, in_captions)))
         # --- training loop ---
         network.train()
@@ -117,7 +119,8 @@ def main():
         for epoch in tqdm(range(hparams["num_epochs"])):
             total_loss = torch.zeros(1).to(device)
             for idx, current_batch in enumerate(train_loader):
-                images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch, device)
+                images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch,
+                                                                                                          device)
                 optimizer.zero_grad()
                 # flatten all caption , flatten all batch and sequences, to make its category comparable
                 # for the loss function
@@ -130,7 +133,7 @@ def main():
                 loss.backward()
                 # Use optimizer to take gradient step
                 optimizer.step()
-                #for dev purposes only
+                # for dev purposes only
                 if idx == break_training_loop_idx:
                     break
                 # hopefully helping for garbage collection an freeing up ram more quickly for GPU
@@ -138,14 +141,14 @@ def main():
                 del images
                 del in_captions
                 del out_captions
-            if (epoch+1) % hparams["training_report_frequency"] == 0:
+            if (epoch + 1) % hparams["training_report_frequency"] == 0:
                 scalar_total_loss = total_loss.item()
-                print("Total Loss:", scalar_total_loss, "Epoch:", epoch+1)
+                print("Total Loss:", scalar_total_loss, "Epoch:", epoch + 1)
                 if hparams["save_pending_model"]:
-                    temp_model = os.path.join(model_dir, f"epoch_{str(epoch+1)}_{model_name}")
+                    temp_model = os.path.join(model_dir, f"epoch_{str(epoch + 1)}_{model_name}")
                     torch.save(network.state_dict(), temp_model)
                 if hparams["use_tensorboard"]:
-                    tb.add_scalar("Total Loss", scalar_total_loss, epoch+1)
+                    tb.add_scalar("Total Loss", scalar_total_loss, epoch + 1)
             del total_loss
         end = timer()
         print("Overall Learning Time", end - start)
@@ -155,8 +158,8 @@ def main():
             tb.close()
 
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx)
-    #model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, c_vectorizer, break_training_loop_idx)
-    #model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, c_vectorizer, break_training_loop_idx)
+    # model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, c_vectorizer, break_training_loop_idx)
+    # model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, c_vectorizer, break_training_loop_idx)
 
 
 if __name__ == '__main__':

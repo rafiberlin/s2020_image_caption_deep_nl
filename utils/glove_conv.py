@@ -2,8 +2,6 @@
 from gensim.scripts.glove2word2vec import glove2word2vec
 from gensim.models import KeyedVectors
 
-
-
 print("Converting glove txt -> word2vec txt...")
 glove_input_file = './data/glove.6B.100d.txt'
 word2vec_output_file = './data/glove.6B.100d.txt.word2vec'
