@@ -324,13 +324,21 @@ class CocoDatasetWrapper(Dataset):
         rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
         rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
         # TODO create a testing split, there is only training and val currently...
+        transform_pipeline = None
+        if hparams["use_pixel_normalization"]:
+            transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                # transforms.Resize((640, 640)),
+                                # transforms.CenterCrop(IMAGE_SIZE),
+                                transforms.ToTensor(),
+                                transforms.Normalize(rgb_mean, rgb_sd)])
+        else:
+            transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                # transforms.Resize((640, 640)),
+                                # transforms.CenterCrop(IMAGE_SIZE),
+                                transforms.ToTensor()])
         coco_train_set = dset.CocoDetection(root=image_dir,
                                             annFile=caption_file_path,
-                                            transform=transforms.Compose([prep.CenteringPad(),
-                                                                          transforms.Resize((640, 640)),
-                                                                          # transforms.CenterCrop(IMAGE_SIZE),
-                                                                          transforms.ToTensor(),
-                                                                          transforms.Normalize(rgb_mean, rgb_sd)])
+                                            transform=transform_pipeline
                                             )
 
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
