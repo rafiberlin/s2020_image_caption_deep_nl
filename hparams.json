@@ -1,6 +1,6 @@
 {
-   "batch_size": 180,
-   "hidden_dim": 300,
+   "batch_size": 160,
+   "hidden_dim": 250,
    "rnn_layers" : 2,
    "cnn_model": "mobilenet",
    "rnn_model": "gru",
@@ -10,7 +10,7 @@
    "train": "train2017",
    "val": "val2017",
    "test": "test2017",
-   "embedding_dim" : 300,
+   "embedding_dim" : 250,
    "glove_embedding": "glove.6B.300d.bin.word2vec",
    "improve_embedding": true,
    "use_glove": true,
@@ -35,5 +35,5 @@
    "last_saved_model" : null,
    "use_tensorboard" : false,
    "use_pixel_normalization" : false,
-   "image_size": 200
+   "image_size": 160
 }
