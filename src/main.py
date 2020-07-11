@@ -183,7 +183,7 @@ def main():
     # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
     break_training_loop_percentage = hparams["break_training_loop_percentage"]
     #break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
-    break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
+    #break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
     # break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
     if start_training:
         loss_function = nn.NLLLoss().to(device)
