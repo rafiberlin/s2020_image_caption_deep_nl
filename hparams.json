@@ -1,18 +1,18 @@
 {
-   "batch_size": 150,
-   "hidden_dim_rnn": 200,
-   "hidden_dim_cnn": 200,
+   "batch_size": 180,
+   "hidden_dim": 300,
+   "rnn_layers" : 2,
    "cnn_model": "mobilenet",
-   "rnn_model": "lstm",
+   "rnn_model": "gru",
    "device": "cuda:0",
    "rounding": 6,
    "root": "./data",
    "train": "train2017",
    "val": "val2017",
    "test": "test2017",
-   "embedding_dim" : 200,
+   "embedding_dim" : 300,
    "glove_embedding": "glove.6B.300d.bin.word2vec",
-   "improve_embedding": false,
+   "improve_embedding": true,
    "use_glove": true,
    "use_padding_idx": true,
    "rgb_stats": "rgb_stats.json",
@@ -34,5 +34,6 @@
    "save_pending_model" : false,
    "last_saved_model" : null,
    "use_tensorboard" : false,
-   "use_pixel_normalization" : true
+   "use_pixel_normalization" : false,
+   "image_size": 200
 }

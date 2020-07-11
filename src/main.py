@@ -176,8 +176,8 @@ def main():
     # test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
-    network = model.LSTMModel(hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], pretrained_embeddings=embedding,
-                              cnn_model=hparams["cnn_model"]).to(device)
+    network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
+                             cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
     # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...

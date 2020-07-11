@@ -23,8 +23,7 @@ from tqdm import tqdm
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
-    TODO: make the other parameters configurable like num channel kernel size, strides... it works only with 640 by 640 images now
-
+    DO NOT USE, broken!
     """
 
     def __init__(self, output_dim=120):
@@ -62,16 +61,21 @@ class VGG16Module(nn.Module):
     def __init__(self, output_dim):
         super().__init__()
         self.vgg16 = models.vgg16(pretrained=True)
-        self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=182, stride=2)
+        #self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=182, stride=2)
         self.linear = nn.Linear(4096, output_dim)
 
         # Remove last four layers of vgg16
         self.vgg16.classifier = nn.Sequential(*list(self.vgg16.classifier.children())[:-4])
 
     def forward(self, img):
+        """
         y = self.conv(img)
         with torch.no_grad():
             y = self.vgg16(y)
+        """
+        # Moved the size reduction in the transformation pipeline
+        with torch.no_grad():
+            y = self.vgg16(img)
         y = self.linear(y)
         return y
 
@@ -87,55 +91,40 @@ class MobileNetModule(nn.Module):
     def __init__(self, output_dim):
         super().__init__()
         self.mobile = models.mobilenet_v2(pretrained=True)
-        self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=130, stride=2)
+        #self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=130, stride=2)
         self.linear = nn.Linear(1000, output_dim)
 
     def forward(self, img):
+        """
         y = self.conv(img)
         with torch.no_grad():
             y = self.mobile(y)
+        """
+        with torch.no_grad():
+            y = self.mobile(img)
         y = self.linear(y)
         return y
 
 
-class LSTMModel(nn.Module):
-    """
-    Results: (NO sorting per length during training needed)
-
-    epoch: 120, loss: 13.1952, train acc: 89.12%, dev acc: 75.33%
-    Overall Learning Time 131.0737464
-    test acc: 76.08%
-
-    Used Params
-
-    N_EPOCHS = 120
-    LEARNING_RATE = 0.01
-    REPORT_EVERY = 5
-    EMBEDDING_DIM = 30
-    HIDDEN_DIM = 20
-    BATCH_SIZE = 150
-    N_LAYERS = 1
-
-
-    """
+class RNNModel(nn.Module):
 
     # I added the padding index, as it is important to flag the index
     # that contains dummy information to speed up learning in embeddings
     def __init__(self,
-                 hidden_dim_rnn,
-                 hidden_dim_cnn,
+                 hidden_dim,
                  pretrained_embeddings,
                  rnn_layers=1,
                  cnn_model=None,
                  rnn_model="lstm",
                  drop_out_prob=0.2
                  ):
-        super(LSTMModel, self).__init__()
+
+        super(RNNModel, self).__init__()
         self.embeddings = pretrained_embeddings
         self.embedding_dim = self.embeddings.embedding_dim
         self.vocabulary_size = self.embeddings.num_embeddings
         self.rnn_layers = rnn_layers
-        self.hidden_dim_rnn = hidden_dim_rnn
+        self.hidden_dim = hidden_dim
         self.rnn_model = rnn_model
         # The output should be the same size as the hidden state size of RNN
         # but attention, if you change the value from 120 to something else,
@@ -145,18 +134,18 @@ class LSTMModel(nn.Module):
 
         if cnn_model == "vgg16":
             print("Using vgg16...")
-            self.image_cnn = VGG16Module(hidden_dim_cnn)
+            self.image_cnn = VGG16Module(hidden_dim)
         elif cnn_model == "mobilenet":
             print("Using mobilenet...")
-            self.image_cnn = MobileNetModule(hidden_dim_cnn)
+            self.image_cnn = MobileNetModule(hidden_dim)
         else:
             print("Using default cnn...")
-            self.image_cnn = ImageToHiddenState(hidden_dim_cnn)
+            self.image_cnn = ImageToHiddenState(hidden_dim)
         if self.rnn_model == "gru":
-            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
+            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True)
         else:
-            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True)
-        self.linear = nn.Linear(self.hidden_dim_rnn, self.n_classes)
+            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True)
+        self.linear = nn.Linear(self.hidden_dim, self.n_classes)
         self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, imgs, labels):
@@ -169,7 +158,7 @@ class LSTMModel(nn.Module):
         image_hidden = image_hidden.unsqueeze(dim=0)
         # when image_hidden needs to be provided for lstm,
         # we need to init the memory cell as well
-        lstm_cell_initial_state = torch.zeros(image_hidden.shape, dtype=torch.float, device=current_device)
+        #lstm_cell_initial_state = torch.zeros((self.rnn_layers, image_hidden.shape[1],image_hidden.shape[2]), dtype=torch.float, device=current_device)
         embeds = self.embeddings(labels)
         # for a given sample, it "flattens" all the captions into the second dimension
         # we get from a 4 dimension shape: batch_size * number of captions * caption length * embdeing dimension
@@ -177,7 +166,8 @@ class LSTMModel(nn.Module):
         embeds = embeds.reshape((batch_size, -1, self.embedding_dim))
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
         # lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
-
+        #Handles stacked RNN Layers
+        image_hidden = image_hidden.repeat(self.rnn_layers, 1 , 1)
         if self.rnn_model == "gru":
             lstm_out, hidden = self.rnn(embeds, image_hidden)
         else:
@@ -325,15 +315,18 @@ class CocoDatasetWrapper(Dataset):
         rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
         # TODO create a testing split, there is only training and val currently...
         transform_pipeline = None
+        img_size = hparams['image_size']
         if hparams["use_pixel_normalization"]:
             transform_pipeline = transforms.Compose([prep.CenteringPad(),
                                 # transforms.Resize((640, 640)),
+                                transforms.Resize((img_size, img_size)),
                                 # transforms.CenterCrop(IMAGE_SIZE),
                                 transforms.ToTensor(),
                                 transforms.Normalize(rgb_mean, rgb_sd)])
         else:
             transform_pipeline = transforms.Compose([prep.CenteringPad(),
                                 # transforms.Resize((640, 640)),
+                                transforms.Resize((img_size, img_size)),
                                 # transforms.CenterCrop(IMAGE_SIZE),
                                 transforms.ToTensor()])
         coco_train_set = dset.CocoDetection(root=image_dir,
@@ -599,7 +592,7 @@ def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_
     return indices.unsqueeze(0).unsqueeze(0)
 
 
-def predict_greedy(model, input_for_prediction, end_token_idx=3, prediction_number=1, found_sequences=0):
+def predict_greedy(model, input_for_prediction, end_token_idx=3, found_sequences=0):
     """
     Only for dev purposes, allow us to get some outputs.
     :param model:
@@ -610,22 +603,19 @@ def predict_greedy(model, input_for_prediction, end_token_idx=3, prediction_numb
     :return:
     """
     seq_len = input_for_prediction[1].shape[2]
-    device = next(model.parameters()).device
     image, vectorized_seq = input_for_prediction
     # first dimension 0 keeps indices, 1 keeps probaility
-    track_best = torch.zeros((2, prediction_number, seq_len)).to(device)
     model.eval()
     # TODO implement the whole sequence prediction using beam search...
+    prediction_number = 1
     prediction_number = prediction_number - found_sequences
     for idx in range(seq_len - 1):
         pred = model(image, vectorized_seq)
         first_predicted = torch.topk(pred[0][idx], prediction_number)
-        losses = first_predicted.values
         indices = first_predicted.indices
         idx_found_sequences = indices[indices == end_token_idx]
         found_sequences = idx_found_sequences.sum()
         vectorized_seq[0][0][idx + 1] = indices[0]
-        input_for_prediction = (image, vectorized_seq)
         if found_sequences > 0:
             break
     return vectorized_seq
@@ -824,8 +814,13 @@ def create_model_name(hparams):
     """
 
     root_name, extension = hparams["model_name"].split(".")
-    model_name = f"{hparams['cnn_model']}_{hparams['rnn_model']}_{root_name}_cnn{str(hparams['hidden_dim_cnn'])}_rnn{str(hparams['hidden_dim_rnn'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_bs{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}.{extension}"
-
+    norm = ""
+    if hparams['use_pixel_normalization']:
+        norm="with_norm"
+    if hparams['sgd_momentum']:
+        model_name = f"img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}_{root_name}_hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_ne{str(hparams['num_epochs'])}_bs{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}{norm}.{extension}"
+    else:
+        model_name = f"img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}_{root_name}_hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_ne{str(hparams['num_epochs'])}_bs{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}{norm}.{extension}"
     return model_name
 
 
