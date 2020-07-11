@@ -153,7 +153,7 @@ def main():
         with open(GLOVE_SCRIPT) as script_file:
             exec(script_file.read())
     #trainset_name = "val"
-    trainset_name = "test"
+    trainset_name = "train"
     valset_name = "val"
     testset_name = "test"
     device = hparams["device"]
@@ -183,7 +183,7 @@ def main():
     # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
     break_training_loop_percentage = hparams["break_training_loop_percentage"]
     break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
-    # break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
+    break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
     # break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
     if start_training:
         loss_function = nn.NLLLoss().to(device)
