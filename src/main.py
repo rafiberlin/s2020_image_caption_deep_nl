@@ -173,8 +173,8 @@ def main():
 
     train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
     # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    # test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
-    val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
+    #test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
+    #val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"]).to(device)
@@ -182,14 +182,14 @@ def main():
     start_training = init_model(hparams, network, args.train)
     # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
     break_training_loop_percentage = hparams["break_training_loop_percentage"]
-    break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
+    #break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
     break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
     # break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, train_loader, device, break_training_loop_idx)
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx, "train")
-    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, c_vectorizer, break_training_loop_idx, "val")
+    #model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, c_vectorizer, break_training_loop_idx, "val")
     # model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, c_vectorizer, break_training_loop_idx)
 
 
