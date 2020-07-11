@@ -18,7 +18,7 @@
    "rgb_stats": "rgb_stats.json",
    "timestamp_prefix": "%d%b%Y_%H_%M_%S_%f",
    "model_storage": "./model_storage",
-   "model_name": "network.pt",
+   "model_name": "_.pt",
    "num_epochs": 250,
    "lr": 0.001,
    "sgd_momentum": null,
