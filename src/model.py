@@ -649,7 +649,7 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
         embedding.weight.requires_grad = hparams["improve_embedding"]
         print("GloVe embedding size:", glove_model.vector_size)
     else:
-        nn.Embedding(num_embeddings=vocabulary_size,
+        embedding = nn.Embedding(num_embeddings=vocabulary_size,
                      embedding_dim=hparams["embedding_dim"], padding_idx=padding_idx)
     return embedding
 
