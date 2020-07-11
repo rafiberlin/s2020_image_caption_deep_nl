@@ -169,9 +169,9 @@ class RNNModel(nn.Module):
         #Handles stacked RNN Layers
         image_hidden = image_hidden.repeat(self.rnn_layers, 1 , 1)
         if self.rnn_model == "gru":
-            lstm_out, hidden = self.rnn(embeds, image_hidden)
+            lstm_out, _ = self.rnn(embeds, image_hidden)
         else:
-            lstm_out, hidden = self.rnn(embeds, (image_hidden, image_hidden))
+            lstm_out, _ = self.rnn(embeds, (image_hidden, image_hidden))
 
         # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
