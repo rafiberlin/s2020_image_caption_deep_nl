@@ -371,7 +371,7 @@ class CocoDatasetWrapper(Dataset):
 class BleuScorer(object):
 
     @classmethod
-    def evaluate_gold(cls, hparams, train_loader, idx_break=-1):
+    def evaluate_gold(cls, hparams, train_loader, idx_break=-1, prefix="train"):
 
         # NEVER do [{}]* 5!!!!
         # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
@@ -403,13 +403,13 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp + "_bleu_gold.json")
+            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_gold.json")
             prep.create_json_config(pd_score.to_dict(), filepath)
 
         return pd_score
 
     @classmethod
-    def evaluate(cls, hparams, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1):
+    def evaluate(cls, hparams, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1, prefix="train"):
         # there is no other mthod to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
@@ -445,8 +445,8 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp + "_bleu_prediction.json")
-            filepath_2 = os.path.join(hparams["model_storage"], timestamp + "_bleu_prediction_scores.json")
+            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction.json")
+            filepath_2 = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction_scores.json")
             prep.create_json_config({k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
             prep.create_json_config([score], filepath_2)
 
@@ -492,15 +492,15 @@ class BleuScorer(object):
         return final_scores
 
     @classmethod
-    def perform_whole_evaluation(cls, hparams, loader, network, c_vectorizer, break_training_loop_idx=3):
+    def perform_whole_evaluation(cls, hparams, loader, network, c_vectorizer, break_training_loop_idx=3, prefix="train"):
         print("Run complete evaluation for:", loader.__repr__())
         train_bleu_score = BleuScorer.evaluate(hparams, loader, network, c_vectorizer,
-                                               idx_break=break_training_loop_idx)
+                                               idx_break=break_training_loop_idx, prefix=prefix)
         print("Unweighted Current Bleu Scores:\n", train_bleu_score)
         train_bleu_score_pd = train_bleu_score.to_numpy().reshape(-1)
         print("Weighted Current Bleu Scores:\n", train_bleu_score_pd.mean())
         print("Geometric Mean Current Bleu Score:\n", gmean(train_bleu_score_pd))
-        bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx)
+        bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx, prefix=prefix)
         bleu_score_human_average_np = bleu_score_human_average.to_numpy().reshape(-1)
         print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
         print("Weighted Gold Bleu Scores:\n", bleu_score_human_average_np.mean())

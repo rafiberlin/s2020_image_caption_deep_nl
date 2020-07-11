@@ -152,8 +152,8 @@ def main():
         prep.download_unpack_zip(hparams["glove_url"], hparams["root"])
         with open(GLOVE_SCRIPT) as script_file:
             exec(script_file.read())
-    trainset_name = "val"
-    # trainset_name = "test"
+    #trainset_name = "val"
+    trainset_name = "test"
     valset_name = "val"
     testset_name = "test"
     device = hparams["device"]
@@ -188,8 +188,8 @@ def main():
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, train_loader, device, break_training_loop_idx)
-    model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx)
-    # model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, c_vectorizer, break_training_loop_idx)
+    model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx, "train")
+    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, c_vectorizer, break_training_loop_idx, "val")
     # model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, c_vectorizer, break_training_loop_idx)
 
 
