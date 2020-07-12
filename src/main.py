@@ -90,13 +90,13 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
 
     # --- training loop ---
     network.train()
-    torch.cuda.empty_cache()
     scalar_total_loss = 0
     for epoch in tqdm(range(hparams["num_epochs"])):
-        total_loss = torch.zeros(1).to(device)
+        total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
             images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch,
                                                                                                       device)
+            del current_batch
             optimizer.zero_grad()
             # flatten all caption , flatten all batch and sequences, to make its category comparable
             # for the loss function
@@ -113,10 +113,11 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             if idx == break_training_loop_idx:
                 break
             # hopefully helping for garbage collection an freeing up ram more quickly for GPU
-            del current_batch
             del images
             del in_captions
             del out_captions
+            del log_prediction
+            del loss
         if (epoch + 1) % hparams["training_report_frequency"] == 0:
             scalar_total_loss = total_loss.item()
             print("Total Loss:", scalar_total_loss, "Epoch:", epoch + 1)
@@ -152,6 +153,10 @@ def main():
         prep.download_unpack_zip(hparams["glove_url"], hparams["root"])
         with open(GLOVE_SCRIPT) as script_file:
             exec(script_file.read())
+
+    # Make sure the Cuda Start is fresh...
+    torch.cuda.empty_cache()
+
     #trainset_name = "val"
     trainset_name = "train"
     valset_name = "val"
