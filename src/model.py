@@ -503,7 +503,7 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
     WIP implementation of beam search
     """
 
-    seq_len = 10#input_for_prediction[1].shape[2]
+    seq_len = 10 #input_for_prediction[1].shape[2]
     device = next(model.parameters()).device
 
     image, vectorized_seq = input_for_prediction
@@ -527,14 +527,26 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
     vocab_size = len(c_vectorizer.get_vocab())
     current_predictions = torch.zeros((beam_width * vocab_size))
 
+    print("Vocab size", vocab_size)
+    print("Final matrix size", beam_width * vocab_size)
+
     # For every sequence index consider all previous beam_width possibilities
     for idx in range(1, seq_len):
         for k in range(beam_width):
             i = track_best[0,k,idx-1]
             p = track_best[1,k,idx-1]
 
+
+            new_seq = torch.zeros(seq_len, dtype=torch.long).to(device)
+            best_k = track_best[2,k,idx-1]
+            for o in reversed(range(idx)):
+                best_k = best_k.long()
+                new_seq[o] = track_best[0,best_k,o]
+                best_k = track_best[2,best_k,o]
+            new_seq = new_seq.unsqueeze(0).unsqueeze(0)
+
             # Build new sequence with previous index
-            new_seq = vectorized_seq.detach().clone()
+            #new_seq = vectorized_seq.detach().clone()
             new_seq[0][0][idx] = i
 
             # Predict new indices and rank beam_width best
