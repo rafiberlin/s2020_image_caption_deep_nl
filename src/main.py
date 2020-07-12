@@ -19,7 +19,7 @@ IMAGE_SIZE = 320
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--params", help="hparams config file")
-    parser.add_argument("--train", action="store_true", help="force training")
+    parser.add_argument("--train", action="store_true", help="train model")
     parser.add_argument("--download", action="store_true", help="download dataset")
     args = parser.parse_args()
 
@@ -67,14 +67,17 @@ def main():
             print(f"Creation of the directory {model_dir} failed")
     model_path = os.path.join(model_dir, hparams["model_name"])
     print("Model save path:", model_path)
-
+    
     ## Training start
     network = model.LSTMModel(hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], pretrained_embeddings=embedding, cnn_model=hparams["cnn_model"]).to(device)
     #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
-    start_training = True
-    if os.path.isfile(model_path) and not args.train:
+
+    # Load previous model weights if available
+    if os.path.isfile(model_path):
+        print("Found existing weights, loading...")
         network.load_state_dict(torch.load(model_path))
-        start_training = False
+    
+    if not args.train:
         print("Skip Training")
     else:
         print("Start Training")
@@ -85,7 +88,7 @@ def main():
     #break_val_loop_idx = max(int(len(val_loader)/batch_size*break_training_loop_percentage/100) - 1, 0)
     #break_test_loop_idx = max(int(len(test_loader)/batch_size*break_training_loop_percentage/100) - 1, 0)
 
-    if start_training:
+    if args.train:
         loss_function = nn.NLLLoss().to(device)
         optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
         start = timer()
