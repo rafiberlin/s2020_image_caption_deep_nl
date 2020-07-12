@@ -11,7 +11,7 @@ import preprocessing as prep
 import argparse
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
-GLOVE_SCRIPT = "./util/glove_conv.py"
+GLOVE_SCRIPT = "./utils/glove_conv.py"
 EMBEDDING_DIM = 60
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
@@ -77,21 +77,19 @@ def main():
     network = model.LSTMModel(hparams["hidden_dim_rnn"], hparams["hidden_dim_cnn"], pretrained_embeddings=embedding, cnn_model=hparams["cnn_model"]).to(device)
     #network = model.LSTMModel(EMBEDDING_DIM, vocabulary_size, HIDDEN_DIM_RNN, HIDDEN_DIM_CNN, pretrained_embeddings=embeddings).to(device)
 
-    # Load previous model weights if available
-    if os.path.isfile(model_path):
-        print("Found existing weights, loading...")
-        network.load_state_dict(torch.load(model_path))
+
     
+    # last_saved_model is either null in the Json file or contains the name of the pending model file to be loaded
+    if hparams["last_saved_model"]:
+        last_model = os.path.join(model_dir, hparams["last_saved_model"])
+        if os.path.isfile(last_model):
+            print("Load temporary model: ", last_model)
+            network.load_state_dict(torch.load(last_model))
+
     if not args.train:
         print("Skip Training")
     else:
         print("Start Training")
-        # last_saved_model is either null in the Json file or contains the name of the pending model file to be loaded
-        if hparams["last_saved_model"]:
-            last_model = os.path.join(model_dir, hparams["last_saved_model"])
-            if os.path.isfile(last_model):
-                print("Load temporary model: ", last_model)
-                network.load_state_dict(torch.load(last_model))
 
     #Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
     batch_size = hparams["batch_size"][0]
