@@ -39,6 +39,7 @@
    "break_training_loop_percentage": 5,
    "print_prediction" : false,
    "save_eval_results" : true,
-   "drop_out_prob" : 0.1
-
+   "drop_out_prob" : 0.1,
+   "sampling_method": "beam_search",
+   "beam_width": 3
 }

@@ -393,10 +393,18 @@ class BleuScorer(object):
 
     @classmethod
     def evaluate(cls, hparams, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1):
-        # there is no other mthod to retrieve the current device on a model...
+        # there is no other method to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
         references = {}
+        
+        sampler = None
+        if hparams["sampling_method"] == "beam_search":
+            beam_width = hparams["beam_width"]
+            sampler = lambda x,y: predict_beam(x,y,c_vectorizer,beam_width)
+        else:
+            sampler = lambda x,y: predict_greedy(x,y,end_token_idx)
+
         for idx, current_batch in enumerate(train_loader):
             imgs, annotations, training_labels = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
@@ -406,8 +414,7 @@ class BleuScorer(object):
                 caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
 
-                #TODO plug the beam search prediction
-                predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
+                predicted_label = sampler(network_model, input_for_prediction)
                 current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
                 hypothesis[_id] = [current_hypothesis]
                 # packs all 5 labels for one image with the corresponding image id
@@ -490,7 +497,7 @@ class BleuScorer(object):
         print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
 
 
-def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_width = 3):
+def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
     """
     WIP implementation of beam search
     """

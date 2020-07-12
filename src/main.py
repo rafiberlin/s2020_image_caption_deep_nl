@@ -32,7 +32,7 @@ def main():
         prep.download_unpack_zip(hparams["img_train_url"], hparams["root"])
         prep.download_unpack_zip(hparams["img_val_url"], hparams["root"])
         prep.download_unpack_zip(hparams["glove_url"], hparams["root"])
-        with open("./util/glove_conv.py") as script_file:
+        with open("./utils/glove_conv.py") as script_file:
             exec(script_file.read())
     trainset_name = "val"
     #trainset_name = "test"
