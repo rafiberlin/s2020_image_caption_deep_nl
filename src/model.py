@@ -336,7 +336,7 @@ class CocoDatasetWrapper(Dataset):
 
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
         batch_size = hparams["batch_size"]
-        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size)
+        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True)
         return train_loader
 
     @classmethod
