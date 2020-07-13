@@ -1,5 +1,5 @@
 {
-   "batch_size": 160,
+   "batch_size": 150,
    "hidden_dim": 250,
    "rnn_layers" : 2,
    "cnn_model": "mobilenet",
@@ -19,7 +19,7 @@
    "timestamp_prefix": "%d%b%Y_%H_%M_%S_%f",
    "model_storage": "./model_storage",
    "model_name": "_.pt",
-   "num_epochs": 250,
+   "num_epochs": 350,
    "lr": 0.001,
    "sgd_momentum": null,
    "img_train_url": "http://images.cocodataset.org/zips/train2017.zip",

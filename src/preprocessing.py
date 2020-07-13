@@ -206,7 +206,39 @@ class CenteringPad(object):
                                                                                              self.padding_mode)
 
 
-def create_list_of_captions_and_clean(hparams, name):
+def get_current_images_id(hparams, dataset_name):
+    """
+    Get the list of image ids corresponding to break_training_loop_percentage in hparams.
+    It helps loading less captions, embeddings in create_list_of_captions_and_clean() , hence getting more samples per batches...
+    :param hparams:
+    :param dataset_name:
+    :return:
+    """
+
+    train_file = hparams[dataset_name]
+    image_dir = os.path.join(hparams['root'], train_file)
+    caption_file_path = get_cleaned_captions_path(hparams, train_file)
+    img_size = hparams["image_size"]
+    transform_pipeline = transforms.Compose([CenteringPad(),
+                                             transforms.Resize((img_size, img_size)),
+                                             transforms.ToTensor()])
+
+    coco_train_set = dset.CocoDetection(root=image_dir,
+                                        annFile=caption_file_path,
+                                        transform= transform_pipeline
+                                        )
+    train_loader = torch.utils.data.DataLoader(coco_train_set, batch_size=hparams["batch_size"])
+    break_training_loop_percentage = hparams["break_training_loop_percentage"]
+    break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
+
+    img_list = []
+    for idx, sample in enumerate(tqdm(train_loader)):
+        img_list.extend(sample[1][0]["image_id"].tolist())
+        if idx == break_training_loop_idx:
+            break
+    return img_list
+
+def create_list_of_captions_and_clean(hparams, name, img_list=None):
     """
     Given a caption json file for the COCO dataset, lower case the labels
     and add space before and after punctuation, Preprocessing function from
@@ -227,9 +259,10 @@ def create_list_of_captions_and_clean(hparams, name):
             print("Cleaning captions...")
             cleaned_captions = []
             for idx, caption in enumerate(tqdm(captions["annotations"])):
-                cleaned_caption = preprocess_text(caption["caption"])
-                cleaned_captions.append(cleaned_caption)
-                captions["annotations"][idx]["caption"] = cleaned_caption
+                if img_list is None or caption["image_id"] in img_list:
+                    cleaned_caption = preprocess_text(caption["caption"])
+                    cleaned_captions.append(cleaned_caption)
+                    captions["annotations"][idx]["caption"] = cleaned_caption
 
             with open(save_file_path, "w") as f:
                 json.dump(captions, f)
@@ -241,7 +274,8 @@ def create_list_of_captions_and_clean(hparams, name):
             captions = json.load(f)
             cleaned_captions = []
             for caption in tqdm(captions["annotations"]):
-                cleaned_captions.append(caption["caption"])
+                if img_list is None or caption["image_id"] in img_list:
+                    cleaned_captions.append(caption["caption"])
             return cleaned_captions
 
 

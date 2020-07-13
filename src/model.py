@@ -334,6 +334,8 @@ class CocoDatasetWrapper(Dataset):
                                             transform=transform_pipeline
                                             )
 
+
+
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
         batch_size = hparams["batch_size"]
         train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True)
@@ -379,7 +381,7 @@ class BleuScorer(object):
         references = [{} for _ in range(5)]
         for idx, current_batch in tqdm(enumerate(train_loader)):
             imgs, \
-            annotations, training_labels = current_batch
+            annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
                 # deterministic...
@@ -409,23 +411,24 @@ class BleuScorer(object):
         return pd_score
 
     @classmethod
-    def evaluate(cls, hparams, train_loader, network_model, c_vectorizer, end_token_idx=3, idx_break=-1, prefix="train"):
+    def evaluate(cls, hparams, train_loader, network_model, end_token_idx=3, idx_break=-1, prefix="train"):
         # there is no other mthod to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
         references = {}
+        vectorizer = train_loader.dataset.vectorizer
         for idx, current_batch in tqdm(enumerate(train_loader)):
-            imgs, annotations, training_labels = current_batch
+            imgs, annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 _id = image_id.item()
-                starting_token = c_vectorizer.create_starting_sequence().to(device)
+                starting_token = vectorizer.create_starting_sequence().to(device)
                 img = imgs[sample_idx].unsqueeze(dim=0).to(device)
                 caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
 
                 # TODO plug the beam search prediction
                 predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
-                current_hypothesis = c_vectorizer.decode(predicted_label[0][0])
+                current_hypothesis = vectorizer.decode(predicted_label[0][0])
                 hypothesis[_id] = [current_hypothesis]
                 # packs all 5 labels for one image with the corresponding image id
                 references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
@@ -492,9 +495,9 @@ class BleuScorer(object):
         return final_scores
 
     @classmethod
-    def perform_whole_evaluation(cls, hparams, loader, network, c_vectorizer, break_training_loop_idx=3, prefix="train"):
+    def perform_whole_evaluation(cls, hparams, loader, network, break_training_loop_idx=3, prefix="train"):
         print("Run complete evaluation for:", loader.__repr__())
-        train_bleu_score = BleuScorer.evaluate(hparams, loader, network, c_vectorizer,
+        train_bleu_score = BleuScorer.evaluate(hparams, loader, network,
                                                idx_break=break_training_loop_idx, prefix=prefix)
         print("Unweighted Current Bleu Scores:\n", train_bleu_score)
         train_bleu_score_pd = train_bleu_score.to_numpy().reshape(-1)

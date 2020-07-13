@@ -18,7 +18,6 @@ PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1
 
-
 def init_model(hparams, network, force_training=False):
     """
     Init the model with pre-existing learned values.
@@ -157,8 +156,8 @@ def main():
     # Make sure the Cuda Start is fresh...
     torch.cuda.empty_cache()
 
-    #trainset_name = "val"
     trainset_name = "train"
+    #trainset_name = "val"
     valset_name = "val"
     testset_name = "test"
     device = hparams["device"]
@@ -167,19 +166,22 @@ def main():
         device = "cpu"
     else:
         print("CUDA GPU is available", "Number of machines:", torch.cuda.device_count())
+
     prep.set_seed_everywhere(SEED)
-    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name)
+    #The image list help to retrieve only captions corresponding to break_training_loop_percentage in hparams. Helps with memory issues...
+    img_list = prep.get_current_images_id(hparams, trainset_name)
+    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name, img_list)
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
     padding_idx = None
+
     if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
     embedding = model.create_embedding(hparams, c_vectorizer, padding_idx)
-
     train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
     # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    #test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "val2017")
-    #val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
+    test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "train2017")
+    val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"]).to(device)
@@ -193,9 +195,9 @@ def main():
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, train_loader, device, break_training_loop_idx)
-    model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, c_vectorizer, break_training_loop_idx, "train")
-    #model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, c_vectorizer, break_training_loop_idx, "val")
-    # model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, c_vectorizer, break_training_loop_idx)
+    model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
+    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network,  break_training_loop_idx, "val")
+    model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_training_loop_idx, "test")
 
 
 if __name__ == '__main__':
