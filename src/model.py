@@ -816,10 +816,12 @@ def create_model_name(hparams):
     :return:
     """
 
+
+
     root_name, extension = hparams["model_name"].split(".")
     norm = ""
     if hparams['use_pixel_normalization']:
-        norm="with_norm"
+        norm = "_with_norm"
     if hparams['sgd_momentum']:
         model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}{norm}.{extension}"
     else:
