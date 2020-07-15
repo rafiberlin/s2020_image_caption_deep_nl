@@ -35,5 +35,7 @@
    "last_saved_model" : null,
    "use_tensorboard" : false,
    "use_pixel_normalization" : false,
-   "image_size": 160
+   "image_size": 160,
+   "caption_number" : 3,
+   "cutoff": 3
 }

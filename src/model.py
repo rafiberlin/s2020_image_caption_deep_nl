@@ -292,10 +292,12 @@ class Vocabulary(object):
 class CocoDatasetWrapper(Dataset):
 
     # TODO impose fixed length of the longest caption when vectorizing and test batch retrieval
-    def __init__(self, cocodaset, vectorizer):
+    def __init__(self, cocodaset, vectorizer, caption_number=5):
         self.cocodaset = cocodaset
         self.vectorizer = vectorizer
-
+        if caption_number > 5:
+            caption_number = 5
+        self.caption_number = caption_number
     @classmethod
     def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
         train_file = hparams[dataset_name]
@@ -334,10 +336,10 @@ class CocoDatasetWrapper(Dataset):
                                             transform=transform_pipeline
                                             )
 
-
-
-        coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer)
+        caption_number = hparams["caption_number"]
+        coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer, caption_number)
         batch_size = hparams["batch_size"]
+
         train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True)
         return train_loader
 
@@ -365,9 +367,10 @@ class CocoDatasetWrapper(Dataset):
         for i, caption_reviewer in enumerate(captions):
             c = self.vectorizer.vectorize(captions[i]["caption"])
             vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
-        # only use 5 captions to be able to use faster vectorized operations
+
+        # only use 5 or less captions to be able to use faster vectorized operations
         # avoid exceptions in the collate function in the fetch part of the dataloader
-        return image, captions[:5], (vectorized_captions_in[:5], vectorized_captions_out[:5])
+        return image, captions[:self.caption_number], (vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
 
 
 class BleuScorer(object):
@@ -377,16 +380,19 @@ class BleuScorer(object):
 
         # NEVER do [{}]* 5!!!!
         # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
-        hypothesis = [{} for _ in range(5)]
-        references = [{} for _ in range(5)]
+        caption_number = hparams["caption_number"]
+        if caption_number > 5 or caption_number is None:
+            caption_number = 5
+        hypothesis = [{} for _ in range(caption_number)]
+        references = [{} for _ in range(caption_number)]
         for idx, current_batch in tqdm(enumerate(train_loader)):
             imgs, \
             annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
                 # deterministic...
-                for c in list(combinations(range(5), 4)):
-                    for hypothesis_idx in range(5):
+                for c in list(combinations(range(caption_number), caption_number - 1)):
+                    for hypothesis_idx in range(caption_number):
                         if hypothesis_idx not in c:
                             hypothesis[hypothesis_idx][image_id.item()] = [
                                 annotations[hypothesis_idx]["caption"][sample_idx]]
@@ -417,6 +423,7 @@ class BleuScorer(object):
         hypothesis = {}
         references = {}
         vectorizer = train_loader.dataset.vectorizer
+        caption_number = hparams["caption_number"]
         for idx, current_batch in tqdm(enumerate(train_loader)):
             imgs, annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
@@ -432,7 +439,7 @@ class BleuScorer(object):
                 hypothesis[_id] = [current_hypothesis]
                 # packs all 5 labels for one image with the corresponding image id
                 references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
-                                   range(5)]
+                                   range(caption_number)]
                 if hparams["print_prediction"]:
                     print("\n#########################")
                     print("image", _id)
@@ -823,9 +830,9 @@ def create_model_name(hparams):
     if hparams['use_pixel_normalization']:
         norm = "_with_norm"
     if hparams['sgd_momentum']:
-        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}{norm}.{extension}"
+        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}.{extension}"
     else:
-        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}{norm}.{extension}"
+        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}.{extension}"
     return model_name
 
 

@@ -171,7 +171,8 @@ def main():
     #The image list help to retrieve only captions corresponding to break_training_loop_percentage in hparams. Helps with memory issues...
     img_list = prep.get_current_images_id(hparams, trainset_name)
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name, img_list)
-    c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions)
+    cutoff_for_unknown_words = hparams["cutoff"]
+    c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions, cutoff_for_unknown_words)
     padding_idx = None
 
     if (hparams["use_padding_idx"]):
