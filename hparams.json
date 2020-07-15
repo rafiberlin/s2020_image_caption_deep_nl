@@ -20,7 +20,7 @@
    "model_storage": "./model_storage",
    "model_name": "_.pt",
    "num_epochs": 350,
-   "lr": 0.001,
+   "lr": 0.01,
    "sgd_momentum": null,
    "img_train_url": "http://images.cocodataset.org/zips/train2017.zip",
    "img_val_url": "http://images.cocodataset.org/zips/val2017.zip",
@@ -34,7 +34,7 @@
    "save_pending_model" : false,
    "last_saved_model" : null,
    "use_tensorboard" : false,
-   "use_pixel_normalization" : false,
+   "use_pixel_normalization" : true,
    "image_size": 160,
    "caption_number" : 3,
    "cutoff": 3
