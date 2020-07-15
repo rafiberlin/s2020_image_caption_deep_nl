@@ -20,13 +20,13 @@
    "model_storage": "./model_storage",
    "model_name": "_.pt",
    "num_epochs": 350,
-   "lr": 0.01,
+   "lr": 0.001,
    "sgd_momentum": null,
    "img_train_url": "http://images.cocodataset.org/zips/train2017.zip",
    "img_val_url": "http://images.cocodataset.org/zips/val2017.zip",
    "annotation_url": "http://images.cocodataset.org/annotations/annotations_trainval2017.zip",
    "glove_url": "http://nlp.stanford.edu/data/glove.6B.zip",
-   "break_training_loop_percentage": 10,
+   "break_training_loop_percentage": 6,
    "print_prediction" : false,
    "save_eval_results" : true,
    "drop_out_prob" : 0.1,
@@ -37,5 +37,6 @@
    "use_pixel_normalization" : true,
    "image_size": 160,
    "caption_number" : 3,
-   "cutoff": 3
+   "cutoff": 3,
+   "clip_grad": 1.0
 }
