@@ -108,7 +108,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             loss.backward()
             #Should be helpful if we get NaN loss
             if hparams["clip_grad"]:
-                torch.nn.utils.clip_grad_norm(network.parameters(), hparams["clip_grad"])
+                torch.nn.utils.clip_grad_norm_(network.parameters(), hparams["clip_grad"])
             # Use optimizer to take gradient step
             optimizer.step()
             # for dev purposes only
