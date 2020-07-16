@@ -502,19 +502,21 @@ class BleuScorer(object):
 
     @classmethod
     def perform_whole_evaluation(cls, hparams, loader, network, break_training_loop_idx=3, prefix="train"):
-        print("Run complete evaluation for:", loader.__repr__())
+        print("##########################################################")
+        print("\nRun complete evaluation for:", prefix)
         train_bleu_score = BleuScorer.evaluate(hparams, loader, network,
                                                idx_break=break_training_loop_idx, prefix=prefix)
         print("Unweighted Current Bleu Scores:\n", train_bleu_score)
         train_bleu_score_pd = train_bleu_score.to_numpy().reshape(-1)
         print("Weighted Current Bleu Scores:\n", train_bleu_score_pd.mean())
         print("Geometric Mean Current Bleu Score:\n", gmean(train_bleu_score_pd))
+        print("\nRun complete evaluation for: gold")
         bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx, prefix=prefix)
         bleu_score_human_average_np = bleu_score_human_average.to_numpy().reshape(-1)
         print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
         print("Weighted Gold Bleu Scores:\n", bleu_score_human_average_np.mean())
         print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
-
+        print("##########################################################")
 
 def predict_beam(model, input_for_prediction, end_token_idx, c_vectorizer, beam_width=3):
     """
