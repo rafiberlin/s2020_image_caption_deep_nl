@@ -503,7 +503,7 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
     WIP implementation of beam search
     """
 
-    seq_len = 10 #input_for_prediction[1].shape[2]
+    seq_len = 10 # input_for_prediction[1].shape[2]
     device = next(model.parameters()).device
 
     image, vectorized_seq = input_for_prediction
@@ -520,40 +520,32 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
         track_best[1,i,0] = log_prob
         track_best[2,i,0] = -1
 
-        #print(c_vectorizer.get_vocab().lookup_index(index.item()))
-
-    #print("First:", first_predicted)        
-
     vocab_size = len(c_vectorizer.get_vocab())
-    current_predictions = torch.zeros((beam_width * vocab_size))
 
-    print("Vocab size", vocab_size)
-    print("Final matrix size", beam_width * vocab_size)
+    current_predictions = torch.zeros((beam_width * vocab_size))
+    new_seq = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
+    
+    # Write start token
+    for i in range(3):
+        new_seq[i][0] = vectorized_seq[0][0][0]
 
     # For every sequence index consider all previous beam_width possibilities
     for idx in range(1, seq_len):
         for k in range(beam_width):
             i = track_best[0,k,idx-1]
             p = track_best[1,k,idx-1]
-
-
-            new_seq = torch.zeros(seq_len, dtype=torch.long).to(device)
-            best_k = track_best[2,k,idx-1]
-            for o in reversed(range(idx)):
-                best_k = best_k.long()
-                new_seq[o] = track_best[0,best_k,o]
-                best_k = track_best[2,best_k,o]
-            new_seq = new_seq.unsqueeze(0).unsqueeze(0)
+            best_k = track_best[2,k,idx-1].long()
 
             # Build new sequence with previous index
-            #new_seq = vectorized_seq.detach().clone()
-            new_seq[0][0][idx] = i
+            new_seq[k][idx] = i
+
+            for o in reversed(range(1,idx)):
+                new_seq[k][o] = track_best[0,best_k,o-1]
+                best_k = track_best[2,best_k,o-1].long()
 
             # Predict new indices and rank beam_width best
-            new_input = (image, new_seq)
+            new_input = (image, new_seq[k].unsqueeze(0).unsqueeze(0))
             new_prediction = model(new_input)[0][idx] + p
-
-            del new_seq
 
             # Store prediction
             current_predictions[k*vocab_size:(k+1)*vocab_size] = new_prediction[:]
@@ -570,29 +562,12 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
             track_best[0,i,idx] = word_idx
             track_best[1,i,idx] = log_prob
             track_best[2,i,idx] = k_idx
-            
-            #print(idx, k_idx, c_vectorizer.get_vocab().lookup_index(word_idx.item()))
 
-    # backtrack best result
+    # Find best result
     last_col = track_best[1,:,seq_len-1]
     best_k = torch.argmax(last_col, dim=0)
-    #print("First best", best_k)
-    
-    indices = torch.zeros(seq_len)
-    #indices[seq_len-1] = track_best[0,best_k, ]
 
-    for idx in reversed(range(seq_len)):
-        best_k = best_k.long()
-        indices[idx] = track_best[0,best_k,idx]
-        best_k = track_best[2,best_k,idx]
-
-    #for index in indices:
-    #    print(c_vectorizer.get_vocab().lookup_index(index.item()))
-
-    #print(vectorized_seq.shape, indices.shape)
-
-    # TODO: sample track_best and check if new_predicted works correctly
-    return indices.unsqueeze(0).unsqueeze(0)
+    return new_seq[best_k].unsqueeze(0).unsqueeze(0)
 
 def predict_greedy(model, input_for_prediction, end_token_idx= 3 , prediction_number= 1, found_sequences = 0):
     """
