@@ -2,6 +2,7 @@
    "batch_size": 150,
    "hidden_dim": 250,
    "rnn_layers" : 2,
+   "shuffle" : true,
    "cnn_model": "mobilenet",
    "rnn_model": "gru",
    "device": "cuda:0",
@@ -27,6 +28,7 @@
    "annotation_url": "http://images.cocodataset.org/annotations/annotations_trainval2017.zip",
    "glove_url": "http://nlp.stanford.edu/data/glove.6B.zip",
    "break_training_loop_percentage": 6,
+   "debug": false,
    "print_prediction" : false,
    "save_eval_results" : true,
    "drop_out_prob" : 0.1,
@@ -36,7 +38,7 @@
    "use_tensorboard" : false,
    "use_pixel_normalization" : true,
    "image_size": 160,
-   "caption_number" : 3,
-   "cutoff": 3,
+   "caption_number" : 5,
+   "cutoff": 5,
    "clip_grad": 1.0
 }

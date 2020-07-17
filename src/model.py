@@ -304,7 +304,7 @@ class CocoDatasetWrapper(Dataset):
             image_dir = os.path.join(hparams['root'], train_file)
         else:
             image_dir = os.path.join(hparams['root'], image_dir)
-        caption_file_path = prep.get_cleaned_captions_path(hparams, train_file)
+        caption_file_path = prep.get_correct_annotation_file(hparams, dataset_name)
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
 
@@ -339,7 +339,7 @@ class CocoDatasetWrapper(Dataset):
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer, caption_number)
         batch_size = hparams["batch_size"]
 
-        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True)
+        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True, shuffle=hparams["shuffle"])
         return train_loader
 
     @classmethod
@@ -834,10 +834,13 @@ def create_model_name(hparams):
     improve_embeddings = ""
     if hparams['improve_embedding']:
         improve_embeddings = "_ie"
+    shuffle = ""
+    if hparams['shuffle']:
+        shuffle = "_s"
     if hparams['sgd_momentum']:
-        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}.{extension}"
+        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}.{extension}"
     else:
-        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}.{extension}"
+        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}.{extension}"
     return model_name
 
 

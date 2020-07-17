@@ -18,6 +18,31 @@ PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1
 
+def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
+    """
+    Returns the indices needed to stop the loop early (only for debugging)
+    Make sure that hparams["shuffle"] is false when debugging.
+    Otherwise hparams["shuffle"] must always be true for correct learning
+    :param hparams:
+    :param train_loader:
+    :param val_loader:
+    :param test_loader:
+    :return:
+    """
+
+    # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
+    if hparams["debug"]:
+        break_training_loop_percentage = hparams["break_training_loop_percentage"]
+        break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
+        break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
+        break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
+    else:
+        break_training_loop_idx = len(train_loader)
+        break_val_loop_idx = len(val_loader)
+        break_test_loop_idx = len(test_loader)
+
+    return break_training_loop_idx, break_val_loop_idx, break_test_loop_idx
+
 def init_model(hparams, network, force_training=False):
     """
     Init the model with pre-existing learned values.
@@ -111,15 +136,15 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
                 torch.nn.utils.clip_grad_norm_(network.parameters(), hparams["clip_grad"])
             # Use optimizer to take gradient step
             optimizer.step()
-            # for dev purposes only
-            if idx == break_training_loop_idx:
-                break
             # hopefully helping for garbage collection an freeing up ram more quickly for GPU
             del images
             del in_captions
             del out_captions
             del log_prediction
             del loss
+            # for dev purposes only
+            if idx == break_training_loop_idx:
+                break
         if (epoch + 1) % hparams["training_report_frequency"] == 0:
             scalar_total_loss = total_loss.item()
             print("Total Loss:", scalar_total_loss, "Epoch:", epoch + 1)
@@ -171,8 +196,11 @@ def main():
         print("CUDA GPU is available", "Number of machines:", torch.cuda.device_count())
 
     prep.set_seed_everywhere(SEED)
-    #The image list help to retrieve only captions corresponding to break_training_loop_percentage in hparams. Helps with memory issues...
-    img_list = prep.get_current_images_id(hparams, trainset_name)
+    img_list = None
+    if hparams["debug"]:
+        # The image list help to retrieve only captions corresponding to break_training_loop_percentage in hparams. Helps with memory issues...
+        img_list = prep.get_current_images_id(hparams, trainset_name)
+
     cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name, img_list)
     cutoff_for_unknown_words = hparams["cutoff"]
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions, cutoff_for_unknown_words)
@@ -191,17 +219,14 @@ def main():
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
-    # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
-    break_training_loop_percentage = hparams["break_training_loop_percentage"]
-    break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
-    #break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
-    # break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
+    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, train_loader, val_loader, test_loader)
+
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, train_loader, device, break_training_loop_idx)
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
-    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network,  break_training_loop_idx, "val")
-    model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_training_loop_idx, "test")
+    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network,  break_val_loop_idx, "val")
+    model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
 
 
 if __name__ == '__main__':
