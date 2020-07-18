@@ -131,7 +131,7 @@ class RNNModel(nn.Module):
         # you will probably need to adjsut the sizes of the kernels / stride in
         # ImageToHiddenState
         self.n_classes = self.vocabulary_size
-
+        self.drop_out_prob = drop_out_prob
         if cnn_model == "vgg16":
             print("Using vgg16...")
             self.image_cnn = VGG16Module(hidden_dim)
@@ -142,9 +142,9 @@ class RNNModel(nn.Module):
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(hidden_dim)
         if self.rnn_model == "gru":
-            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True)
+            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
         else:
-            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True)
+            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
         self.linear = nn.Linear(self.hidden_dim, self.n_classes)
         self.drop_layer = nn.Dropout(p=drop_out_prob)
 

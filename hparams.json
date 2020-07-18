@@ -27,7 +27,7 @@
    "img_val_url": "http://images.cocodataset.org/zips/val2017.zip",
    "annotation_url": "http://images.cocodataset.org/annotations/annotations_trainval2017.zip",
    "glove_url": "http://nlp.stanford.edu/data/glove.6B.zip",
-   "break_training_loop_percentage": 6,
+   "break_training_loop_percentage": 100,
    "debug": false,
    "print_prediction" : false,
    "save_eval_results" : true,

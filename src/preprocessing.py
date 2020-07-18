@@ -477,16 +477,16 @@ if __name__ == '__main__':
 
     #create_cocosplit(arg_for_split)
 
-    # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
-    #           train='../data/annotations/10_cleaned_captions_train2017.json', percentage=10)
-    # reduce_cocosplit(arg_for_split)
-    # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
-    #           train='../data/annotations/6_cleaned_captions_train2017.json', percentage=6)
-    # reduce_cocosplit(arg_for_split)
-    #
-    # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_test2017.json', having_annotations=False, split=0.8,
-    #           train='../data/annotations/10_cleaned_captions_test2017.json', percentage=10)
-    # reduce_cocosplit(arg_for_split)
+    arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
+               train='../data/annotations/5_cleaned_captions_train2017.json', percentage=5)
+    reduce_cocosplit(arg_for_split)
+    arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_test2017.json', having_annotations=False, split=0.8,
+               train='../data/annotations/5_cleaned_captions_test2017.json', percentage=5)
+    reduce_cocosplit(arg_for_split)
+
+    arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_val2017.json', having_annotations=False, split=0.8,
+               train='../data/annotations/5_cleaned_captions_val2017.json', percentage=5)
+    reduce_cocosplit(arg_for_split)
     # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_test2017.json', having_annotations=False, split=0.8,
     #           train='../data/annotations/6_cleaned_captions_test2017.json', percentage=6)
     # reduce_cocosplit(arg_for_split)
