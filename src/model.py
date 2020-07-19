@@ -146,7 +146,7 @@ class RNNModel(nn.Module):
         else:
             self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
         self.linear = nn.Linear(self.hidden_dim, self.n_classes)
-        self.drop_layer = nn.Dropout(p=drop_out_prob)
+        #self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, imgs, labels):
         batch_size = imgs.shape[0]
@@ -172,11 +172,11 @@ class RNNModel(nn.Module):
         else:
             lstm_out, _ = self.rnn(embeds, (image_hidden, image_hidden))
 
-        # WRITE MORE CODE HERE
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
         # the second entry the first hidden state
-        classes = self.linear(self.drop_layer(lstm_out))
-
+        #classes = self.linear(self.drop_layer(lstm_out))
+        #already applying drop out in LSTM
+        classes = self.linear(lstm_out)
         # squeeze make out.shape to batch_size times num_classes
         out = F.log_softmax(classes, dim=2)
         return out
