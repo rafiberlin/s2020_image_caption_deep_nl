@@ -127,6 +127,7 @@ class RNNModel(nn.Module):
     def __init__(self,
                  hidden_dim,
                  pretrained_embeddings,
+                 batch_size,
                  rnn_layers=1,
                  cnn_model=None,
                  rnn_model="lstm",
@@ -142,6 +143,7 @@ class RNNModel(nn.Module):
         self.hidden_dim = hidden_dim
         self.rnn_model = rnn_model
         self.improve_cnn = improve_cnn
+        self.memory_cell_init_state = nn.Parameter(torch.zeros((rnn_layers, batch_size, hidden_dim)))
         # The output should be the same size as the hidden state size of RNN
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
@@ -186,7 +188,7 @@ class RNNModel(nn.Module):
         if self.rnn_model == "gru":
             lstm_out, _ = self.rnn(embeds, image_hidden)
         else:
-            lstm_out, _ = self.rnn(embeds, (image_hidden, image_hidden))
+            lstm_out, _ = self.rnn(embeds, (image_hidden, self.memory_cell_init_state))
 
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
         # the second entry the first hidden state
