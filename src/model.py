@@ -152,13 +152,13 @@ class RNNModel(nn.Module):
         self.drop_out_prob = drop_out_prob
         if cnn_model == "vgg16":
             print("Using vgg16...")
-            self.image_cnn = VGG16Module(hidden_dim, self.improve_cnn )
+            self.image_cnn = VGG16Module(self.embedding_dim, self.improve_cnn )
         elif cnn_model == "mobilenet":
             print("Using mobilenet...")
-            self.image_cnn = MobileNetModule(hidden_dim, self.improve_cnn )
+            self.image_cnn = MobileNetModule(self.embedding_dim, self.improve_cnn )
         else:
             print("Using default cnn...")
-            self.image_cnn = ImageToHiddenState(hidden_dim)
+            self.image_cnn = ImageToHiddenState(self.embedding_dim)
         if self.rnn_model == "gru":
             self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
         else:

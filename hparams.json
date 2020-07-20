@@ -1,6 +1,6 @@
 {
    "batch_size": 64,
-   "hidden_dim": 300,
+   "hidden_dim": 512,
    "rnn_layers" : 2,
    "shuffle" : true,
    "cnn_model": "mobilenet",
