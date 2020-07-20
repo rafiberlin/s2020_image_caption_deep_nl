@@ -14,6 +14,7 @@
    "embedding_dim" : 250,
    "glove_embedding": "glove.6B.300d.bin.word2vec",
    "improve_embedding": true,
+   "improve_cnn": true,
    "use_glove": true,
    "use_padding_idx": true,
    "rgb_stats": "rgb_stats.json",

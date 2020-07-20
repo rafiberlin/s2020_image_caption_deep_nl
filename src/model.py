@@ -58,12 +58,12 @@ class VGG16Module(nn.Module):
 
     """
 
-    def __init__(self, output_dim):
+    def __init__(self, output_dim, improve_pretrained=False):
         super().__init__()
         self.vgg16 = models.vgg16(pretrained=True)
         #self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=182, stride=2)
         self.linear = nn.Linear(4096, output_dim)
-
+        self.improve_pretrained = improve_pretrained
         # Remove last four layers of vgg16
         self.vgg16.classifier = nn.Sequential(*list(self.vgg16.classifier.children())[:-4])
 
@@ -73,10 +73,17 @@ class VGG16Module(nn.Module):
         with torch.no_grad():
             y = self.vgg16(y)
         """
-        # Moved the size reduction in the transformation pipeline
-        with torch.no_grad():
+
+        if not self.improve_pretrained:
+            # Moved the size reduction in the transformation pipeline
+            with torch.no_grad():
+                y = self.vgg16(img)
+            y = self.linear(y)
+            y = nn.LeakyReLU(y)
+        else:
             y = self.vgg16(img)
-        y = self.linear(y)
+            y = self.linear(y)
+            y = nn.LeakyReLU(y)
         return y
 
 
@@ -88,11 +95,12 @@ class MobileNetModule(nn.Module):
 
     """
 
-    def __init__(self, output_dim):
+    def __init__(self, output_dim, improve_pretrained=False):
         super().__init__()
         self.mobile = models.mobilenet_v2(pretrained=True)
         #self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=130, stride=2)
         self.linear = nn.Linear(1000, output_dim)
+        self.improve_pretrained = improve_pretrained
 
     def forward(self, img):
         """
@@ -100,9 +108,15 @@ class MobileNetModule(nn.Module):
         with torch.no_grad():
             y = self.mobile(y)
         """
-        with torch.no_grad():
+        if not self.improve_pretrained:
+            with torch.no_grad():
+                y = self.mobile(img)
+            y = self.linear(y)
+            y = nn.LeakyReLU(y)
+        else:
             y = self.mobile(img)
-        y = self.linear(y)
+            y = self.linear(y)
+            y = nn.LeakyReLU(y)
         return y
 
 
@@ -116,7 +130,8 @@ class RNNModel(nn.Module):
                  rnn_layers=1,
                  cnn_model=None,
                  rnn_model="lstm",
-                 drop_out_prob=0.2
+                 drop_out_prob=0.2,
+                 improve_cnn=False
                  ):
 
         super(RNNModel, self).__init__()
@@ -126,6 +141,7 @@ class RNNModel(nn.Module):
         self.rnn_layers = rnn_layers
         self.hidden_dim = hidden_dim
         self.rnn_model = rnn_model
+        self.improve_cnn = improve_cnn
         # The output should be the same size as the hidden state size of RNN
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
@@ -134,10 +150,10 @@ class RNNModel(nn.Module):
         self.drop_out_prob = drop_out_prob
         if cnn_model == "vgg16":
             print("Using vgg16...")
-            self.image_cnn = VGG16Module(hidden_dim)
+            self.image_cnn = VGG16Module(hidden_dim, self.improve_cnn )
         elif cnn_model == "mobilenet":
             print("Using mobilenet...")
-            self.image_cnn = MobileNetModule(hidden_dim)
+            self.image_cnn = MobileNetModule(hidden_dim, self.improve_cnn )
         else:
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(hidden_dim)
@@ -837,10 +853,13 @@ def create_model_name(hparams):
     shuffle = ""
     if hparams['shuffle']:
         shuffle = "_s"
+    improve_cnn = ""
+    if hparams['improve_cnn']:
+        shuffle = "_ic"
     if hparams['sgd_momentum']:
-        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}.{extension}"
+        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}.{extension}"
     else:
-        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}.{extension}"
+        model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}.{extension}"
     return model_name
 
 
