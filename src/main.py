@@ -98,9 +98,9 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
 
     if hparams["sgd_momentum"]:
         optimizer = optim.SGD(params=network.parameters(), momentum=hparams["sgd_momentum"], lr=hparams['lr'],
-                              nesterov=True)
+                              nesterov=True, weight_decay=hparams['weight_decay'])
     else:
-        optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'])
+        optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'], weight_decay=hparams['weight_decay'])
 
     start = timer()
     tb = None
