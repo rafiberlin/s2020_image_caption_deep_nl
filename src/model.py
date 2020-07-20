@@ -79,11 +79,11 @@ class VGG16Module(nn.Module):
             with torch.no_grad():
                 y = self.vgg16(img)
             y = self.linear(y)
-            y = nn.LeakyReLU(y)
+            y = y.relu()
         else:
             y = self.vgg16(img)
             y = self.linear(y)
-            y = nn.LeakyReLU(y)
+            y = y.relu()
         return y
 
 
@@ -112,11 +112,11 @@ class MobileNetModule(nn.Module):
             with torch.no_grad():
                 y = self.mobile(img)
             y = self.linear(y)
-            y = nn.LeakyReLU(y)
+            y = y.relu()
         else:
             y = self.mobile(img)
             y = self.linear(y)
-            y = nn.LeakyReLU(y)
+            y = y.relu()
         return y
 
 
