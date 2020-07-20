@@ -79,11 +79,11 @@ class VGG16Module(nn.Module):
             with torch.no_grad():
                 y = self.vgg16(img)
             y = self.linear(y)
-            y = y.relu()
+            #y = y.relu()
         else:
             y = self.vgg16(img)
             y = self.linear(y)
-            y = y.relu()
+            #y = y.relu()
         return y
 
 
@@ -112,11 +112,11 @@ class MobileNetModule(nn.Module):
             with torch.no_grad():
                 y = self.mobile(img)
             y = self.linear(y)
-            y = y.relu()
+            #y = y.relu()
         else:
             y = self.mobile(img)
             y = self.linear(y)
-            y = y.relu()
+            #y = y.relu()
         return y
 
 
@@ -855,7 +855,7 @@ def create_model_name(hparams):
         shuffle = "_s"
     improve_cnn = ""
     if hparams['improve_cnn']:
-        shuffle = "_ic"
+        improve_cnn = "_ic"
     if hparams['sgd_momentum']:
         model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_sgdm{hparams['sgd_momentum']}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}.{extension}"
     else:
