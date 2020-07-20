@@ -13,7 +13,7 @@ import argparse
 from torch.utils.tensorboard import SummaryWriter
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
-GLOVE_SCRIPT = ".util/glove_conv.py"
+GLOVE_SCRIPT = "./util/glove_conv.py"
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1

@@ -143,7 +143,7 @@ class RNNModel(nn.Module):
         self.hidden_dim = hidden_dim
         self.rnn_model = rnn_model
         self.improve_cnn = improve_cnn
-        self.memory_cell_init_state = nn.Parameter(torch.zeros((rnn_layers, batch_size, hidden_dim)))
+        #self.memory_cell_init_state = nn.Parameter(torch.zeros((rnn_layers, batch_size, hidden_dim)))
         # The output should be the same size as the hidden state size of RNN
         # but attention, if you change the value from 120 to something else,
         # you will probably need to adjsut the sizes of the kernels / stride in
@@ -172,7 +172,8 @@ class RNNModel(nn.Module):
         # Image hidden is used to init the hidden states of the lstm cells.
         # it must have the shape (number of layers *time number of direction) * batch size * hidden dim
         # size we just do 1 layer 1 direction, unsqueeze(0) is fine
-        image_hidden = image_hidden.unsqueeze(dim=0)
+        #image_hidden = image_hidden.unsqueeze(dim=0)
+        image_hidden = image_hidden.unsqueeze(dim=1)
         # when image_hidden needs to be provided for lstm,
         # we need to init the memory cell as well
         #lstm_cell_initial_state = torch.zeros((self.rnn_layers, image_hidden.shape[1],image_hidden.shape[2]), dtype=torch.float, device=current_device)
@@ -181,19 +182,27 @@ class RNNModel(nn.Module):
         # we get from a 4 dimension shape: batch_size * number of captions * caption length * embdeing dimension
         # to a 3 dimension shape batch_size * (number of captions * caption length) * embdeing dimension
         embeds = embeds.reshape((batch_size, -1, self.embedding_dim))
+        embeds = torch.cat((image_hidden, embeds), dim=1)
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
         # lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
         #Handles stacked RNN Layers
-        image_hidden = image_hidden.repeat(self.rnn_layers, 1 , 1)
-        if self.rnn_model == "gru":
-            lstm_out, _ = self.rnn(embeds, image_hidden)
-        else:
-            lstm_out, _ = self.rnn(embeds, (image_hidden, self.memory_cell_init_state))
+        # image_hidden = image_hidden.repeat(self.rnn_layers, 1 , 1)
+        # if self.rnn_model == "gru":
+        #     lstm_out, _ = self.rnn(embeds, image_hidden)
+        # else:
+        #     lstm_out, _ = self.rnn(embeds, (image_hidden, self.memory_cell_init_state))
 
+        if self.rnn_model == "gru":
+            lstm_out, _ = self.rnn(embeds)
+        else:
+            lstm_out, _ = self.rnn(embeds)
+        #todo: remove the first output
         # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
         # the second entry the first hidden state
         #classes = self.linear(self.drop_layer(lstm_out))
         #already applying drop out in LSTM
+        # remove the output of the first hidden state corresponding to the image output...
+        lstm_out = lstm_out[:, 1:, :]
         classes = self.linear(lstm_out)
         # squeeze make out.shape to batch_size times num_classes
         out = F.log_softmax(classes, dim=2)
