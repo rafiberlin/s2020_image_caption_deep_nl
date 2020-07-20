@@ -349,6 +349,7 @@ class CocoDatasetWrapper(Dataset):
                                 # transforms.Resize((640, 640)),
                                 transforms.Resize((img_size, img_size)),
                                 # transforms.CenterCrop(IMAGE_SIZE),
+                                transforms.RandomHorizontalFlip(),
                                 transforms.ToTensor(),
                                 transforms.Normalize(rgb_mean, rgb_sd)])
         else:
@@ -356,6 +357,7 @@ class CocoDatasetWrapper(Dataset):
                                 # transforms.Resize((640, 640)),
                                 transforms.Resize((img_size, img_size)),
                                 # transforms.CenterCrop(IMAGE_SIZE),
+                                transforms.RandomHorizontalFlip(),
                                 transforms.ToTensor()])
         coco_train_set = dset.CocoDetection(root=image_dir,
                                             annFile=caption_file_path,
