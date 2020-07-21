@@ -235,7 +235,7 @@ def main():
     test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "train2017")
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
-    network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding, batch_size=hparams["batch_size"],
+    network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"], improve_cnn=hparams["improve_cnn"]).to(device)
 
     start_training = init_model(hparams, network, args.train)

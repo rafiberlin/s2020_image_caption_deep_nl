@@ -1,5 +1,5 @@
 {
-   "batch_size": 64,
+   "batch_size": 32,
    "hidden_dim": 512,
    "rnn_layers" : 2,
    "shuffle" : true,
@@ -33,7 +33,7 @@
    "print_prediction" : false,
    "save_eval_results" : true,
    "drop_out_prob" : 0.1,
-   "sampling_method": "beam_search",
+   "sampling_method": null,
    "beam_width": 3,
    "training_report_frequency" : 5,
    "save_pending_model" : false,

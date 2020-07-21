@@ -68,12 +68,6 @@ class VGG16Module(nn.Module):
         self.vgg16.classifier = nn.Sequential(*list(self.vgg16.classifier.children())[:-4])
 
     def forward(self, img):
-        """
-        y = self.conv(img)
-        with torch.no_grad():
-            y = self.vgg16(y)
-        """
-
         if not self.improve_pretrained:
             # Moved the size reduction in the transformation pipeline
             with torch.no_grad():
@@ -84,6 +78,30 @@ class VGG16Module(nn.Module):
             y = self.vgg16(img)
             y = self.linear(y)
             #y = y.relu()
+        return y
+
+
+class Resnet50Module(nn.Module):
+
+    def __init__(self, embed_size, improve_pretrained=False):
+        super(Resnet50Module, self).__init__()
+        resnet = models.resnet50(pretrained=True)
+        modules = list(resnet.children())[:-1]
+        self.resnet = nn.Sequential(*modules)
+        self.linear = nn.Linear(resnet.fc.in_features, embed_size)
+        self.improve_pretrained = improve_pretrained
+
+    def forward(self, img):
+        if not self.improve_pretrained:
+            # Moved the size reduction in the transformation pipeline
+            with torch.no_grad():
+                y = self.resnet(img)
+            y = y.view(y.size(0), -1)
+            y = self.linear(y)
+        else:
+            y = self.resnet(img)
+            y = y.view(y.size(0), -1)
+            y = self.linear(y)
         return y
 
 
@@ -103,11 +121,6 @@ class MobileNetModule(nn.Module):
         self.improve_pretrained = improve_pretrained
 
     def forward(self, img):
-        """
-        y = self.conv(img)
-        with torch.no_grad():
-            y = self.mobile(y)
-        """
         if not self.improve_pretrained:
             with torch.no_grad():
                 y = self.mobile(img)
@@ -127,7 +140,6 @@ class RNNModel(nn.Module):
     def __init__(self,
                  hidden_dim,
                  pretrained_embeddings,
-                 batch_size,
                  rnn_layers=1,
                  cnn_model=None,
                  rnn_model="lstm",
@@ -156,6 +168,8 @@ class RNNModel(nn.Module):
         elif cnn_model == "mobilenet":
             print("Using mobilenet...")
             self.image_cnn = MobileNetModule(self.embedding_dim, self.improve_cnn )
+        elif cnn_model == "resnet50":
+            self.image_cnn = Resnet50Module(self.embedding_dim, self.improve_cnn)
         else:
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(self.embedding_dim)
