@@ -33,7 +33,7 @@
    "print_prediction" : false,
    "save_eval_results" : true,
    "drop_out_prob" : 0.1,
-   "training_report_frequency" : 1,
+   "training_report_frequency" : 5,
    "save_pending_model" : false,
    "last_saved_model" : null,
    "use_tensorboard" : false,
