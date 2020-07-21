@@ -201,12 +201,13 @@ class RNNModel(nn.Module):
         # the second entry the first hidden state
         #classes = self.linear(self.drop_layer(lstm_out))
         #already applying drop out in LSTM
-        # remove the output of the first hidden state corresponding to the image output...
-        lstm_out = lstm_out[:, 1:, :]
+
+        #lstm_out = lstm_out[:, 1:, :]
         classes = self.linear(lstm_out)
         # squeeze make out.shape to batch_size times num_classes
         out = F.log_softmax(classes, dim=2)
-        return out
+        # remove the output of the first hidden state corresponding to the image output...
+        return out[:, 1:, :]
 
 
 class Vocabulary(object):
