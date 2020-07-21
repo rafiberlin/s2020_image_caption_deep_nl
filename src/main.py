@@ -79,8 +79,24 @@ def init_model(hparams, network, force_training=False):
                 network.load_state_dict(torch.load(last_model))
     return start_training
 
+def compute_loss_on_validation(val_loader, device, network):
+    val_total_loss = torch.zeros(1, device=device)
+    val_loss_function = nn.NLLLoss().to(device)
+    with torch.no_grad():
+        for val_idx, val_batch in enumerate(val_loader):
+            val_images, val_in_captions, val_out_captions = model.CocoDatasetWrapper.transform_batch_for_training(
+                val_batch,
+                device)
+            del val_batch
+            val_out_captions = val_out_captions.reshape(-1)
+            val_log_prediction = network(val_images, val_in_captions).reshape(val_out_captions.shape[0], -1)
+            val_total_loss += val_loss_function(val_log_prediction, val_out_captions)
+            del val_images
+            del val_in_captions
+            del val_out_captions
+    return val_total_loss.item()
 
-def train(hparams, loss_function, network, train_loader, device, break_training_loop_idx):
+def train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader):
     """
     Performs the main training loop
     :param hparams:
@@ -131,6 +147,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             loss = loss_function(log_prediction, out_captions)
             total_loss += loss
             loss.backward()
+
             #Should be helpful if we get NaN loss
             if hparams["clip_grad"]:
                 torch.nn.utils.clip_grad_norm_(network.parameters(), hparams["clip_grad"])
@@ -147,7 +164,10 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
                 break
         if (epoch + 1) % hparams["training_report_frequency"] == 0:
             scalar_total_loss = total_loss.item()
-            print("Total Loss:", scalar_total_loss, "Epoch:", epoch + 1)
+            print("\nTotal Loss:", scalar_total_loss, "Epoch:", epoch + 1)
+            if hparams["compute_val_loss"]:
+                val_loss = compute_loss_on_validation(val_loader, device, network)
+                print("\nTotal Val Loss:", val_loss, "Epoch:", epoch + 1)
             if hparams["save_pending_model"]:
                 temp_model = os.path.join(model_dir, f"epoch_{str(epoch + 1)}_{model_name}")
                 torch.save(network.state_dict(), temp_model)
@@ -223,7 +243,7 @@ def main():
 
     if start_training:
         loss_function = nn.NLLLoss().to(device)
-        train(hparams, loss_function, network, train_loader, device, break_training_loop_idx)
+        train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loss_function, val_loader)
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
     model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network,  break_val_loop_idx, "val")
     model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")

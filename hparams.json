@@ -21,7 +21,7 @@
    "timestamp_prefix": "%d%b%Y_%H_%M_%S_%f",
    "model_storage": "./model_storage",
    "model_name": "_.pt",
-   "num_epochs": 80,
+   "num_epochs": 150,
    "lr": 0.001,
    "sgd_momentum": null,
    "img_train_url": "http://images.cocodataset.org/zips/train2017.zip",
@@ -33,7 +33,7 @@
    "print_prediction" : false,
    "save_eval_results" : true,
    "drop_out_prob" : 0.1,
-   "training_report_frequency" : 10,
+   "training_report_frequency" : 1,
    "save_pending_model" : false,
    "last_saved_model" : null,
    "use_tensorboard" : false,
@@ -42,5 +42,6 @@
    "caption_number" : 5,
    "cutoff": 5,
    "clip_grad": 1.0,
-   "weight_decay": 0.01
+   "weight_decay": 0.00001,
+   "compute_val_loss": true
 }
