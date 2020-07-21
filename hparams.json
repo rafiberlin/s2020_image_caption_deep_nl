@@ -40,7 +40,7 @@
    "last_saved_model" : null,
    "use_tensorboard" : false,
    "use_pixel_normalization" : true,
-   "image_size": 224,
+   "image_size": 256,
    "caption_number" : 5,
    "cutoff": 5,
    "clip_grad": 1.0,

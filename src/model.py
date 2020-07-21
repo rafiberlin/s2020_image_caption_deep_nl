@@ -352,6 +352,7 @@ class CocoDatasetWrapper(Dataset):
 
         # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
         stats_rounding = hparams["rounding"]
+
         rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
                      "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
         rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
@@ -359,14 +360,19 @@ class CocoDatasetWrapper(Dataset):
         # TODO create a testing split, there is only training and val currently...
         transform_pipeline = None
         img_size = hparams['image_size']
+        #TODO set different check for different pretrained models
+        assert img_size > 256
         if hparams["use_pixel_normalization"]:
             transform_pipeline = transforms.Compose([prep.CenteringPad(),
                                 # transforms.Resize((640, 640)),
                                 transforms.Resize((img_size, img_size)),
                                 # transforms.CenterCrop(IMAGE_SIZE),
+                                transforms.RandomCrop(224),
                                 transforms.RandomHorizontalFlip(),
                                 transforms.ToTensor(),
-                                transforms.Normalize(rgb_mean, rgb_sd)])
+                                transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
+                                                     (0.229, 0.224, 0.225))
+                                                     ])
         else:
             transform_pipeline = transforms.Compose([prep.CenteringPad(),
                                 # transforms.Resize((640, 640)),
