@@ -447,7 +447,7 @@ class BleuScorer(object):
 
     @classmethod
     def evaluate(cls, hparams, train_loader, network_model, end_token_idx=3, idx_break=-1, prefix="train"):
-        # there is no other mthod to retrieve the current device on a model...
+        # there is no other method to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
         references = {}
@@ -461,7 +461,7 @@ class BleuScorer(object):
             sampler = lambda x,y: predict_greedy(x,y,end_token_idx)
 
         for idx, current_batch in enumerate(train_loader):
-            imgs, annotations, training_labels = current_batch
+            imgs, annotations, _ = current_batch
             for sample_idx, image_id in tqdm(enumerate(annotations[0]["image_id"])):
                 _id = image_id.item()
                 starting_token = vectorizer.create_starting_sequence().to(device)
@@ -469,9 +469,6 @@ class BleuScorer(object):
                 caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
 
-                # TODO plug the beam search prediction
-                predicted_label = predict_greedy(network_model, input_for_prediction, end_token_idx)
-                current_hypothesis = vectorizer.decode(predicted_label[0][0])
                 predicted_label = sampler(network_model, input_for_prediction)
                 current_hypothesis = vectorizer.decode(predicted_label[0][0])
                 hypothesis[_id] = [current_hypothesis]
@@ -572,7 +569,7 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
     model.eval()
 
     # Do first prediction, store #beam_width best
-    pred = model(input_for_prediction)
+    pred = model(*input_for_prediction)
     first_predicted = torch.topk(pred[0][0], beam_width)
     for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
         track_best[0, i, 0] = index.item()
@@ -604,7 +601,7 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
 
             # Predict new indices and rank beam_width best
             new_input = (image, new_seq[k].unsqueeze(0).unsqueeze(0))
-            new_prediction = model(new_input)[0][idx] + p
+            new_prediction = model(*new_input)[0][idx] + p
 
             # Store prediction
             current_predictions[k * vocab_size:(k + 1) * vocab_size] = new_prediction[:]
@@ -866,7 +863,11 @@ def create_model_name(hparams):
     sgd_momentum = ""
     if hparams['sgd_momentum']:
         sgd_momentum = f"_sgdm{hparams['sgd_momentum']}"
-    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}.{extension}"
+
+    beam_width = ""
+    if hparams["sampling_method"] == "beam_search":
+        beam_width = f"_bw{hparams['beam_width']}"
+    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{beam_width}.{extension}"
     return model_name
 
 
