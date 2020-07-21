@@ -362,24 +362,43 @@ class CocoDatasetWrapper(Dataset):
         img_size = hparams['image_size']
         #TODO set different check for different pretrained models
         assert img_size > 256
-        if hparams["use_pixel_normalization"]:
-            transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                # transforms.Resize((640, 640)),
-                                transforms.Resize((img_size, img_size)),
-                                # transforms.CenterCrop(IMAGE_SIZE),
-                                transforms.RandomCrop(224),
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor(),
-                                transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
-                                                     (0.229, 0.224, 0.225))
-                                                     ])
+        if dataset_name == "train":
+            shuffle = hparams["shuffle"]
+            if hparams["use_pixel_normalization"]:
+                transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                    # transforms.Resize((640, 640)),
+                                    transforms.Resize((img_size, img_size)),
+                                    # transforms.CenterCrop(IMAGE_SIZE),
+                                    transforms.RandomCrop(224),
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
+                                                         (0.229, 0.224, 0.225))
+                                                         ])
+            else:
+                transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                    # transforms.Resize((640, 640)),
+                                    transforms.Resize((img_size, img_size)),
+                                    # transforms.CenterCrop(IMAGE_SIZE),
+                                    transforms.RandomCrop(224),
+                                    transforms.RandomHorizontalFlip(),
+                                    transforms.ToTensor()])
         else:
-            transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                # transforms.Resize((640, 640)),
-                                transforms.Resize((img_size, img_size)),
-                                # transforms.CenterCrop(IMAGE_SIZE),
-                                transforms.RandomHorizontalFlip(),
-                                transforms.ToTensor()])
+            shuffle = False
+            if hparams["use_pixel_normalization"]:
+                transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                    transforms.Resize((img_size, img_size)),
+                                    transforms.CenterCrop(224),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
+                                                         (0.229, 0.224, 0.225))
+                                                         ])
+            else:
+                transforms.Compose([prep.CenteringPad(),
+                                    transforms.Resize((img_size, img_size)),
+                                    transforms.CenterCrop(224),
+                                    transforms.ToTensor()
+                                    ])
         coco_train_set = dset.CocoDetection(root=image_dir,
                                             annFile=caption_file_path,
                                             transform=transform_pipeline
@@ -389,7 +408,7 @@ class CocoDatasetWrapper(Dataset):
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer, caption_number)
         batch_size = hparams["batch_size"]
 
-        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True, shuffle=hparams["shuffle"])
+        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True, shuffle=shuffle)
         return train_loader
 
     @classmethod
