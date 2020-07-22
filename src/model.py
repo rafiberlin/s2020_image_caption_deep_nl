@@ -453,6 +453,11 @@ class BleuScorer(object):
             caption_number = 5
         hypothesis = [{} for _ in range(caption_number)]
         references = [{} for _ in range(caption_number)]
+        v = train_loader.dataset.vectorizer
+        gold_with_original = ""
+        if hparams["gold_eval_with_original"]:
+            gold_with_original = "_orig"
+
         for idx, current_batch in tqdm(enumerate(train_loader)):
             imgs, \
             annotations, _ = current_batch
@@ -462,10 +467,18 @@ class BleuScorer(object):
                 for c in list(combinations(range(caption_number), caption_number - 1)):
                     for hypothesis_idx in range(caption_number):
                         if hypothesis_idx not in c:
-                            hypothesis[hypothesis_idx][image_id.item()] = [
-                                annotations[hypothesis_idx]["caption"][sample_idx]]
-                            references[hypothesis_idx][image_id.item()] = [
-                                annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in list(c)]
+                            #gold_eval_with_original with false will have reference captions with <UNK> token within
+                            if hparams["gold_eval_with_original"]:
+                                hypothesis[hypothesis_idx][image_id.item()] = [
+                                    annotations[hypothesis_idx]["caption"][sample_idx]]
+                                references[hypothesis_idx][image_id.item()] = [
+                                    annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in list(c)]
+                            else:
+                                hypothesis[hypothesis_idx][image_id.item()] = [
+                                    v.decode(v.vectorize(annotations[hypothesis_idx]["caption"][sample_idx])[0])]
+                                references[hypothesis_idx][image_id.item()] = [
+                                    v.decode(v.vectorize(annotations[annotation_idx]["caption"][sample_idx])[0]) for
+                                    annotation_idx in list(c)]
             if idx == idx_break:
                 # useful for debugging
                 break
@@ -479,7 +492,7 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_gold.json")
+            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_gold{gold_with_original}.json")
             prep.create_json_config(pd_score.to_dict(), filepath)
 
         return pd_score
@@ -492,9 +505,12 @@ class BleuScorer(object):
         references = {}
         vectorizer = train_loader.dataset.vectorizer
         caption_number = hparams["caption_number"]
+
+        bw = ""
         sampler = None
         if hparams["sampling_method"] == "beam_search":
             beam_width = hparams["beam_width"]
+            bw = f"_bw{hparams['beam_width']}"
             sampler = lambda x,y: predict_beam(x,y,vectorizer,beam_width)
         else:
             sampler = lambda x,y: predict_greedy(x,y,end_token_idx)
@@ -529,8 +545,8 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction.json")
-            filepath_2 = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction_scores.json")
+            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction{bw}.json")
+            filepath_2 = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction_scores{bw}.json")
             prep.create_json_config({k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
             prep.create_json_config([score], filepath_2)
 
@@ -903,10 +919,7 @@ def create_model_name(hparams):
     if hparams['sgd_momentum']:
         sgd_momentum = f"_sgdm{hparams['sgd_momentum']}"
 
-    beam_width = ""
-    if hparams["sampling_method"] == "beam_search":
-        beam_width = f"_bw{hparams['beam_width']}"
-    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{beam_width}.{extension}"
+    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}.{extension}"
     return model_name
 
 
