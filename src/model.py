@@ -360,8 +360,8 @@ class CocoDatasetWrapper(Dataset):
         # TODO create a testing split, there is only training and val currently...
         transform_pipeline = None
         img_size = hparams['image_size']
-        #TODO set different check for different pretrained models
-        assert img_size > 256
+        #Most on the example in pytorch have this minimum size before cropping
+        assert img_size >= 256
         if dataset_name == "train":
             shuffle = hparams["shuffle"]
             if hparams["use_pixel_normalization"]:
