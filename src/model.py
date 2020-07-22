@@ -169,6 +169,7 @@ class RNNModel(nn.Module):
             print("Using mobilenet...")
             self.image_cnn = MobileNetModule(self.embedding_dim, self.improve_cnn )
         elif cnn_model == "resnet50":
+            print("Using resnet50...")
             self.image_cnn = Resnet50Module(self.embedding_dim, self.improve_cnn)
         else:
             print("Using default cnn...")
