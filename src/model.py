@@ -503,15 +503,17 @@ class BleuScorer(object):
         device = next(network_model.parameters()).device
         hypothesis = {}
         references = {}
-        vectorizer = train_loader.dataset.vectorizer
+        v = train_loader.dataset.vectorizer
         caption_number = hparams["caption_number"]
-
+        gold_with_original = ""
+        if hparams["gold_eval_with_original"]:
+            gold_with_original = "_orig"
         bw = ""
         sampler = None
         if hparams["sampling_method"] == "beam_search":
             beam_width = hparams["beam_width"]
             bw = f"_bw{hparams['beam_width']}"
-            sampler = lambda x,y: predict_beam(x,y,vectorizer,beam_width)
+            sampler = lambda x,y: predict_beam(x,y,v,beam_width)
         else:
             sampler = lambda x,y: predict_greedy(x,y,end_token_idx)
 
@@ -519,17 +521,22 @@ class BleuScorer(object):
             imgs, annotations, _ = current_batch
             for sample_idx, image_id in tqdm(enumerate(annotations[0]["image_id"])):
                 _id = image_id.item()
-                starting_token = vectorizer.create_starting_sequence().to(device)
+                starting_token = v.create_starting_sequence().to(device)
                 img = imgs[sample_idx].unsqueeze(dim=0).to(device)
                 caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
 
                 predicted_label = sampler(network_model, input_for_prediction)
-                current_hypothesis = vectorizer.decode(predicted_label[0][0])
+                current_hypothesis = v.decode(predicted_label[0][0])
                 hypothesis[_id] = [current_hypothesis]
-                # packs all 5 labels for one image with the corresponding image id
-                references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
-                                   range(caption_number)]
+                # with false, gold gaptions have <UNK> token
+                if hparams["gold_eval_with_original"]:
+                    # packs all 5 labels for one image with the corresponding image id
+                    references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
+                                       range(caption_number)]
+                else:
+                    references[_id] = [v.decode(v.vectorize(annotations[annotation_idx]["caption"][sample_idx])[0]) for annotation_idx in
+                                       range(caption_number)]
                 if hparams["print_prediction"]:
                     print("\n#########################")
                     print("image", _id)
@@ -545,8 +552,8 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction{bw}.json")
-            filepath_2 = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction_scores{bw}.json")
+            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction{bw}{gold_with_original}.json")
+            filepath_2 = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction_scores{bw}{gold_with_original}.json")
             prep.create_json_config({k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
             prep.create_json_config([score], filepath_2)
 
