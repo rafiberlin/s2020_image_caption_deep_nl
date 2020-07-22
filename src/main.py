@@ -170,6 +170,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             print("\nTotal Loss:", scalar_total_loss, "Epoch:", epoch + 1)
             if hparams["compute_val_loss"]:
                 val_loss = compute_loss_on_validation(val_loader, device, network)
+                print("Total Validation Loss:", val_loss, "Epoch:", epoch + 1, "\n")
                 if val_loss >= previous_val_loss:
                     print("Total Validation Loss got worse, reload last temporary model, break learning loop.")
                     break_early_val_loss = True
