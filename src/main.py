@@ -131,6 +131,9 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     # --- training loop ---
     network.train()
     scalar_total_loss = 0
+    previous_val_loss = 0
+    break_early_val_loss = False
+    temp_val_model = os.path.join(model_dir, f"val_loss_{model_name}")
     for epoch in tqdm(range(hparams["num_epochs"])):
         total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
@@ -167,7 +170,13 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             print("\nTotal Loss:", scalar_total_loss, "Epoch:", epoch + 1)
             if hparams["compute_val_loss"]:
                 val_loss = compute_loss_on_validation(val_loader, device, network)
-                print("\nTotal Val Loss:", val_loss, "Epoch:", epoch + 1)
+                if val_loss >= previous_val_loss:
+                    print("Total Validation Loss got worse, reload last temporary model, break learning loop.")
+                    break_early_val_loss = True
+                    break
+                else:
+                    torch.save(network.state_dict(), temp_val_model)
+                previous_val_loss = val_loss
             if hparams["save_pending_model"]:
                 temp_model = os.path.join(model_dir, f"epoch_{str(epoch + 1)}_{model_name}")
                 torch.save(network.state_dict(), temp_model)
@@ -177,6 +186,10 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     end = timer()
     print("Overall Learning Time", end - start)
     print("Total Loss", scalar_total_loss)
+    if break_early_val_loss:
+        print("Reload last good model before the validation got worse")
+        network.load_state_dict(torch.load(temp_val_model))
+        print("Best Validation loss:", previous_val_loss)
     torch.save(network.state_dict(), model_path)
     if tb:
         tb.close()
