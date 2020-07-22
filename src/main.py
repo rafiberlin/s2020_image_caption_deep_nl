@@ -11,7 +11,7 @@ import model
 import preprocessing as prep
 import argparse
 from torch.utils.tensorboard import SummaryWriter
-
+from pathlib import Path
 HYPER_PARAMETER_CONFIG = "./hparams.json"
 GLOVE_SCRIPT = "./util/glove_conv.py"
 PADDING_WORD = "<MASK>"
@@ -191,6 +191,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         print("Reload last good model before the validation got worse")
         network.load_state_dict(torch.load(temp_val_model))
         print("Best Validation loss:", previous_val_loss)
+        os.remove(Path(temp_val_model))
     torch.save(network.state_dict(), model_path)
     if tb:
         tb.close()
