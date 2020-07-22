@@ -144,7 +144,7 @@ def print_img_infos(dataset):
     print("Average resolution", stats.get_avg_img_size())
 
 
-def preprocess_text(text):
+def preprocess_text(text, remove_punctuation=True):
     """
     Removes punctuation and add lower case
     :param text:
@@ -152,7 +152,8 @@ def preprocess_text(text):
     """
     text = text.lower()
     text = word_tokenize(text)
-    text = [word for word in text if word.isalpha()]
+    if remove_punctuation:
+        text = [word for word in text if word.isalpha()]
     text = " ".join(text)
     return text
 
@@ -238,7 +239,7 @@ def get_current_images_id(hparams, dataset_name):
             break
     return img_list
 
-def get_correct_annotation_file(hparams, name):
+def get_correct_annotation_file(hparams, name, remove_punctuation=True):
     """
     Contrived logic, based on the percentage for breaking the loop,
     pick the correct file name...
@@ -250,14 +251,16 @@ def get_correct_annotation_file(hparams, name):
     """
     percentage = hparams["break_training_loop_percentage"]
     caption_dir = os.path.join(hparams['root'], "annotations")
-
+    punct = ""
+    if not remove_punctuation:
+        punct="punct_"
     use_reduced_set = False
     if percentage < 100:
-        save_file_path = os.path.join(caption_dir, f"{percentage}_cleaned_captions_{hparams[name]}.json")
+        save_file_path = os.path.join(caption_dir, f"{percentage}_cleaned_captions_{punct+hparams[name]}.json")
         caption_file = Path(save_file_path)
         use_reduced_set = caption_file.is_file()
     if not use_reduced_set:
-        save_file_path = os.path.join(caption_dir, f"cleaned_captions_{hparams[name]}.json")
+        save_file_path = os.path.join(caption_dir, f"cleaned_captions_{punct+hparams[name]}.json")
         caption_file = Path(save_file_path)
         file_available = caption_file.is_file()
     else:
@@ -266,7 +269,7 @@ def get_correct_annotation_file(hparams, name):
         return save_file_path
     return None
 
-def create_list_of_captions_and_clean(hparams, name, img_list=None):
+def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punctuation=True):
     """
     Given a caption json file for the COCO dataset, lower case the labels
     and add space before and after punctuation, Preprocessing function from
@@ -276,18 +279,26 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None):
     :return:
     """
 
-    file_path = get_captions_path(hparams, hparams[name])
-    save_file_path = get_correct_annotation_file(hparams, name)
+    punct = ""
+    if not remove_punctuation:
+        punct = "punct_"
+    file_path = get_cleaned_captions_path(hparams, punct+hparams[name])
+    if not Path(file_path).is_file():
+        file_path = get_captions_path(hparams, hparams[name])
+    save_file_path = get_correct_annotation_file(hparams, name, remove_punctuation)
+    #Fallback on original files
+    if not Path(file_path).is_file() and not save_file_path:
+        raise Exception("Neither cleaned version of annotation files under nor original avalaible under : ", hparams["root"])
     # If the cleaned version does not exist, create it
     if not save_file_path:
-        save_file_path = os.path.join(os.path.join(hparams['root'], "annotations"), f"cleaned_captions_{hparams[name]}.json")
+        save_file_path = os.path.join(os.path.join(hparams['root'], "annotations"), f"cleaned_captions_{punct+hparams[name]}.json")
         with open(file_path, "r") as f:
             captions = json.load(f)
             print("Cleaning captions...")
             cleaned_captions = []
             for idx, caption in enumerate(tqdm(captions["annotations"])):
                 if img_list is None or caption["image_id"] in img_list:
-                    cleaned_caption = preprocess_text(caption["caption"])
+                    cleaned_caption = preprocess_text(caption["caption"], remove_punctuation)
                     cleaned_captions.append(cleaned_caption)
                     captions["annotations"][idx]["caption"] = cleaned_caption
 
@@ -306,9 +317,9 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None):
             return cleaned_captions
 
 
-def clean_caption_annotations(annotation_dir, annotation_list):
+def clean_caption_annotations(annotation_dir, annotation_list, remove_punctuation=True):
     for annotation in annotation_list:
-        create_list_of_captions_and_clean(annotation_dir, annotation)
+        create_list_of_captions_and_clean(annotation_dir, annotation, None, remove_punctuation)
 
 
 def calculate_rgb_stats():
@@ -459,44 +470,32 @@ def unzip_glove():
     zf.close()
     os.remove(temp_path)
 
+def reduce_annotation_size(annotation_directory="./data/annotations", cleaned_file_prefix="cleaned_captions_", final_percentage=10):
+
+    file_suffixes = ["train2017.json", "val2017.json", "test2017.json"]
+
+    for fs in file_suffixes:
+        arg_for_split = Namespace(annotations= f'{annotation_directory}/{cleaned_file_prefix+fs}',
+                                  having_annotations=False, train=f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix+fs}', percentage=final_percentage)
+        reduce_cocosplit(arg_for_split)
+        print("Annotations created:", f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix+fs}')
 
 if __name__ == '__main__':
+    hparams = read_json_config("./hparams.json")
+
     # Because the original test labels are missing in the Coco dataset (remember, it was meant as a competition)
     # we need to split the traning dataset into training and testing 80% / 20%
-    hparams = read_json_config("../hparams.json")
-    #arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=True, split=0.8,
-    #          test='../data/annotations/captions_10_test2017.json', train='../data/annotations/captions_10_train2017.json', percentage=10)
-
-    #arg_for_split = Namespace(annotations='../data/annotations/captions_train2017.json', having_annotations=False, split=0.8,
-    #          test='../data/annotations/10_cleaned_captions_test2017.json', train='../data/annotations/10_cleaned_captions_train2017.json', percentage=10)
-
-    #create_cocosplit(arg_for_split)
 
     #arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
-    #          test='../data/annotations/6_cleaned_captions_test2017.json', train='../data/annotations/6_cleaned_captions_train2017.json', percentage=6)
-
+    #         test='../data/annotations/cleaned_captions_test2017.json', train='../data/annotations/cleaned_captions_train2017.json', percentage=100)
     #create_cocosplit(arg_for_split)
 
-    arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
-               train='../data/annotations/5_cleaned_captions_train2017.json', percentage=5)
-    reduce_cocosplit(arg_for_split)
-    arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_test2017.json', having_annotations=False, split=0.8,
-               train='../data/annotations/5_cleaned_captions_test2017.json', percentage=5)
-    reduce_cocosplit(arg_for_split)
+    #clean_caption_annotations(hparams, ["train", "val"],  False)
 
-    arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_val2017.json', having_annotations=False, split=0.8,
-               train='../data/annotations/5_cleaned_captions_val2017.json', percentage=5)
-    reduce_cocosplit(arg_for_split)
-    # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_test2017.json', having_annotations=False, split=0.8,
-    #           train='../data/annotations/6_cleaned_captions_test2017.json', percentage=6)
-    # reduce_cocosplit(arg_for_split)
-    #
-    # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_val2017.json', having_annotations=False, split=0.8,
-    #           train='../data/annotations/10_cleaned_captions_val2017.json', percentage=10)
-    # reduce_cocosplit(arg_for_split)
-    # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_val2017.json', having_annotations=False, split=0.8,
-    #           train='../data/annotations/6_cleaned_captions_val2017.json', percentage=6)
-    # reduce_cocosplit(arg_for_split)
+    # percentage_list = [1, 2, 5, 6, 10]
+    # for p in percentage_list:
+    #     reduce_annotation_size("../data/annotations", "cleaned_captions_punct_", p)
+    #     reduce_annotation_size("../data/annotations", "cleaned_captions_", 2)
 
     # for example from captions_train2017.json we get cleaned_captions_train2017.json and cleaned_captions_train2017_labels_only.json
     # clean_caption_annotations(hparams, ["train", "val", "test"])

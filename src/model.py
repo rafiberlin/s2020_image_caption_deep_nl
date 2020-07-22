@@ -931,19 +931,3 @@ def create_model_name(hparams):
     return model_name
 
 
-def reminder_rnn_size():
-    rnn_layer = 1
-    feature_size = 30
-    hidden_size = 20
-    seq = 3
-    batch_size = 5
-
-    # self.lstm = nn.LSTM(self.embedding_dim, self.hidden_dim_rnn, self.rnn_layers, batch_first=True, dev)
-    rnn = nn.LSTM(feature_size, hidden_size, rnn_layer, batch_first=True)
-    input = torch.randn(batch_size, seq, feature_size)
-    h0 = torch.randn(rnn_layer, batch_size, hidden_size)
-    c0 = torch.randn(rnn_layer, batch_size, hidden_size)
-    output, (hn, cn) = rnn(input, (h0, c0))
-    print(output.shape)
-    print(hn.shape)
-

@@ -8,6 +8,7 @@
    "device": "cuda:0",
    "rounding": 6,
    "root": "./data",
+   "annotation_without_punctuation": false,
    "train": "train2017",
    "val": "val2017",
    "test": "test2017",
