@@ -50,6 +50,7 @@ which will be created if non-existent.
 Set 0 to not use it.
 * rnn_model : "gru" or "lstm"  are the possible values
 * hidden_dim : control the dimension of the RNN hidden state. Set to 512 as in the original paper
+* rnn_bidirection: true or false to use bidirectional RNN
 * cnn_model : controls which pre-trained model will be used to process the images. Options are "vgg16", "mobilenet" 
 and  "resnet50"
 * shuffle: true or false, shuffle batches between epochs during training

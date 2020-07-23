@@ -144,10 +144,14 @@ class RNNModel(nn.Module):
                  cnn_model=None,
                  rnn_model="lstm",
                  drop_out_prob=0.2,
-                 improve_cnn=False
+                 improve_cnn=False,
+                 bidirection=False
                  ):
 
         super(RNNModel, self).__init__()
+        bi_directions_multiply = 1
+        if bidirection:
+            bi_directions_multiply = 2
         self.embeddings = pretrained_embeddings
         self.embedding_dim = self.embeddings.embedding_dim
         self.vocabulary_size = self.embeddings.num_embeddings
@@ -175,10 +179,10 @@ class RNNModel(nn.Module):
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(self.embedding_dim)
         if self.rnn_model == "gru":
-            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
+            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob, bidirectional=True)
         else:
             self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
-        self.linear = nn.Linear(self.hidden_dim, self.n_classes)
+        self.linear = nn.Linear(self.hidden_dim*bi_directions_multiply, self.n_classes)
         #self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, imgs, labels):
@@ -934,7 +938,10 @@ def create_model_name(hparams):
     if hparams["annotation_without_punctuation"]:
         without_punct = "_wp"
 
-    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}.{extension}"
+    rnn_bi = ""
+    if hparams["rnn_bidirection"]:
+        rnn_bi = "_bd"
+    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{rnn_bi}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}.{extension}"
     return model_name
 
 
