@@ -179,9 +179,9 @@ class RNNModel(nn.Module):
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(self.embedding_dim)
         if self.rnn_model == "gru":
-            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob, bidirectional=True)
+            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob, bidirectional=bidirection)
         else:
-            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
+            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob, bidirectional=bidirection)
         self.linear = nn.Linear(self.hidden_dim*bi_directions_multiply, self.n_classes)
         #self.drop_layer = nn.Dropout(p=drop_out_prob)
 
