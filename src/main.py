@@ -266,7 +266,7 @@ def main():
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
-                             cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"], improve_cnn=hparams["improve_cnn"], bidirection=hparams["rnn_bidirection"]).to(device)
+                             cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"], improve_cnn=hparams["improve_cnn"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
     break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, train_loader, val_loader, test_loader)

@@ -144,14 +144,10 @@ class RNNModel(nn.Module):
                  cnn_model=None,
                  rnn_model="lstm",
                  drop_out_prob=0.2,
-                 improve_cnn=False,
-                 bidirection=False
+                 improve_cnn=False
                  ):
 
         super(RNNModel, self).__init__()
-        bi_directions_multiply = 1
-        if bidirection:
-            bi_directions_multiply = 2
         self.embeddings = pretrained_embeddings
         self.embedding_dim = self.embeddings.embedding_dim
         self.vocabulary_size = self.embeddings.num_embeddings
@@ -179,10 +175,10 @@ class RNNModel(nn.Module):
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(self.embedding_dim)
         if self.rnn_model == "gru":
-            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob, bidirectional=bidirection)
+            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
         else:
-            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob, bidirectional=bidirection)
-        self.linear = nn.Linear(self.hidden_dim*bi_directions_multiply, self.n_classes)
+            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
+        self.linear = nn.Linear(self.hidden_dim, self.n_classes)
         #self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, imgs, labels):
