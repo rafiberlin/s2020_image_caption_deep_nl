@@ -114,7 +114,6 @@ def print_img_infos_datasets():
     file_args = read_json_config(DATASET_FILE_PATHS_CONFIG)
     hyper_parameters = read_json_config(HYPER_PARAMETER_CONFIG)
 
-    # TODO create a testing split, there is only training and val currently...
     coco_train_set = dset.CocoDetection(root=file_args["train"]["img"],
                                         annFile=file_args["train"]["capt"],
                                         transform=transforms.Compose([transforms.ToTensor()])

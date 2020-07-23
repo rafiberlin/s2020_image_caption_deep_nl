@@ -61,7 +61,6 @@ class VGG16Module(nn.Module):
     def __init__(self, output_dim, improve_pretrained=False):
         super().__init__()
         self.vgg16 = models.vgg16(pretrained=True)
-        #self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=182, stride=2)
         self.linear = nn.Linear(4096, output_dim)
         self.improve_pretrained = improve_pretrained
         # Remove last four layers of vgg16
@@ -69,7 +68,6 @@ class VGG16Module(nn.Module):
 
     def forward(self, img):
         if not self.improve_pretrained:
-            # Moved the size reduction in the transformation pipeline
             with torch.no_grad():
                 y = self.vgg16(img)
             y = self.linear(y)
@@ -93,7 +91,6 @@ class Resnet50Module(nn.Module):
 
     def forward(self, img):
         if not self.improve_pretrained:
-            # Moved the size reduction in the transformation pipeline
             with torch.no_grad():
                 y = self.resnet(img)
             y = y.view(y.size(0), -1)
@@ -116,7 +113,6 @@ class MobileNetModule(nn.Module):
     def __init__(self, output_dim, improve_pretrained=False):
         super().__init__()
         self.mobile = models.mobilenet_v2(pretrained=True)
-        #self.conv = nn.Conv2d(in_channels=3, out_channels=3, kernel_size=130, stride=2)
         self.linear = nn.Linear(1000, output_dim)
         self.improve_pretrained = improve_pretrained
 
@@ -135,8 +131,6 @@ class MobileNetModule(nn.Module):
 
 class RNNModel(nn.Module):
 
-    # I added the padding index, as it is important to flag the index
-    # that contains dummy information to speed up learning in embeddings
     def __init__(self,
                  hidden_dim,
                  pretrained_embeddings,
@@ -155,11 +149,6 @@ class RNNModel(nn.Module):
         self.hidden_dim = hidden_dim
         self.rnn_model = rnn_model
         self.improve_cnn = improve_cnn
-        #self.memory_cell_init_state = nn.Parameter(torch.zeros((rnn_layers, batch_size, hidden_dim)))
-        # The output should be the same size as the hidden state size of RNN
-        # but attention, if you change the value from 120 to something else,
-        # you will probably need to adjsut the sizes of the kernels / stride in
-        # ImageToHiddenState
         self.n_classes = self.vocabulary_size
         self.drop_out_prob = drop_out_prob
         if cnn_model == "vgg16":
@@ -185,44 +174,23 @@ class RNNModel(nn.Module):
         batch_size = imgs.shape[0]
         number_captions = labels.shape[1]
         image_hidden = self.image_cnn(imgs)
-        # Image hidden is used to init the hidden states of the lstm cells.
-        # it must have the shape (number of layers *time number of direction) * batch size * hidden dim
-        # size we just do 1 layer 1 direction, unsqueeze(0) is fine
-        #image_hidden = image_hidden.unsqueeze(dim=0)
 
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
         image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(dim=1).repeat(1,number_captions,1,1)
-        # when image_hidden needs to be provided for lstm,
-        # we need to init the memory cell as well
-        #lstm_cell_initial_state = torch.zeros((self.rnn_layers, image_hidden.shape[1],image_hidden.shape[2]), dtype=torch.float, device=current_device)
         embeds = self.embeddings(labels)
 
-        # adds the image for eac batch sampe and caption
+        # adds the image for each batch sample and caption as the first input of the sequence.
+        # its output will be discarded at the return statement, we don't use it in the loss function
         embeds = torch.cat((image_hidden, embeds), dim=2)
         embeds = embeds.reshape((batch_size*number_captions, -1, self.embedding_dim))
-
-        # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
-        # lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
-        #Handles stacked RNN Layers
-        # image_hidden = image_hidden.repeat(self.rnn_layers, 1 , 1)
-        # if self.rnn_model == "gru":
-        #     lstm_out, _ = self.rnn(embeds, image_hidden)
-        # else:
-        #     lstm_out, _ = self.rnn(embeds, (image_hidden, self.memory_cell_init_state))
 
         if self.rnn_model == "gru":
             lstm_out, _ = self.rnn(embeds)
         else:
             lstm_out, _ = self.rnn(embeds)
-        #todo: remove the first output
-        # hidden is a tuple. It looks like the first entry in hidden is the last hidden state,
-        # the second entry the first hidden state
-        #classes = self.linear(self.drop_layer(lstm_out))
-        #already applying drop out in LSTM
 
-        #lstm_out = lstm_out[:, 1:, :]
         classes = self.linear(lstm_out)
-        # squeeze make out.shape to batch_size times num_classes
+
         out = F.log_softmax(classes, dim=2)
         # remove the output of the first hidden state corresponding to the image output...
         return out[:, 1:, :]
@@ -336,7 +304,6 @@ class Vocabulary(object):
 
 class CocoDatasetWrapper(Dataset):
 
-    # TODO impose fixed length of the longest caption when vectorizing and test batch retrieval
     def __init__(self, cocodaset, vectorizer, caption_number=5):
         self.cocodaset = cocodaset
         self.vectorizer = vectorizer
@@ -713,7 +680,6 @@ def predict_greedy(model, input_for_prediction, end_token_idx=3, found_sequences
     image, vectorized_seq = input_for_prediction
     # first dimension 0 keeps indices, 1 keeps probaility
     model.eval()
-    # TODO implement the whole sequence prediction using beam search...
     prediction_number = 1
     prediction_number = prediction_number - found_sequences
     for idx in range(seq_len - 1):
@@ -751,8 +717,6 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
             embed_size = hparams["embedding_dim"]
 
         embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_embedding[:, :embed_size]))
-        # TODO: not sure if we should not start with the pretrained but still be learning with our
-        # training => transfer learning...
         embedding.weight.requires_grad = hparams["improve_embedding"]
         print("GloVe embedding size:", glove_model.vector_size)
     else:
