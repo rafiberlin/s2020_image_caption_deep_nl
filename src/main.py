@@ -184,7 +184,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
                 val_loss = compute_loss_on_validation(val_loader, device, network)
                 print("Total Validation Loss:", val_loss, "Epoch:", epoch + 1, "\n")
                 # Can be used to make graphs..
-                total_val_loss_tracking((epoch + 1, val_loss))
+                total_val_loss_tracking.append((epoch + 1, val_loss))
                 if hparams["keep_best_val_loss"]:
                     if val_loss >= previous_val_loss:
                         print("Total Validation Loss got worse, reload last temporary model, break learning loop.")
