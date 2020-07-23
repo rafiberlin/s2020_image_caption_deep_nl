@@ -688,7 +688,7 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width=3):
     return new_seq[best_k].unsqueeze(0).unsqueeze(0)
 
 
-def predict_greedy_sample(model, input_for_prediction, end_token_idx=3, found_sequences=0):
+def predict_greedy_sample(model, input_for_prediction, end_token_idx=3):
     """
     Only for dev purposes, allow us to get some outputs.
     :param model:
@@ -702,15 +702,11 @@ def predict_greedy_sample(model, input_for_prediction, end_token_idx=3, found_se
     image, vectorized_seq = input_for_prediction
     model.eval()
     prediction_number = 1
-    prediction_number = prediction_number - found_sequences
     for idx in range(seq_len - 1):
         pred = model(image, vectorized_seq)
-        first_predicted = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
-        indices = first_predicted.indices
-        idx_found_sequences = indices[indices == end_token_idx]
-        found_sequences = idx_found_sequences.sum()
-        vectorized_seq[0][0][idx + 1] = indices[0]
-        if found_sequences > 0:
+        sampled_index = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
+        vectorized_seq[0][0][idx + 1] = sampled_index
+        if sampled_index == end_token_idx:
             break
     return vectorized_seq
 

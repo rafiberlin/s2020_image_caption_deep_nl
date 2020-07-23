@@ -6,7 +6,6 @@ from torchvision import transforms
 import torch
 import numbers
 import os
-import main
 from nltk.tokenize import word_tokenize
 from tqdm import tqdm
 import json
@@ -17,7 +16,12 @@ from urllib.request import urlopen
 from zipfile import ZipFile
 from argparse import Namespace
 import model
+import torch.utils.data
 
+if not torch.cuda.is_available():
+    DEVICE="cpu"
+else:
+    DEVICE="cuda:0"
 def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
         json.dump(params, json_file)
@@ -77,20 +81,18 @@ class ImageSizeStats(object):
 
     def get_RGB_mean(self, image_size=(640, 640), batch_size=300):
 
-        device = main.get_device()
-        mean = torch.zeros(3, device=device)
+        mean = torch.zeros(3, device=DEVICE)
         for i_batch, sample_batched in enumerate(torch.utils.data.DataLoader(self.dataset, batch_size)):
-            imgs = sample_batched[0].to(device)
+            imgs = sample_batched[0].to(DEVICE)
             mean += imgs.sum((2, 3)).sum(0)
         mean = mean / (len(self.dataset) * image_size[0] * image_size[1])
         create_json_config({"mean": [mean[0].item(), mean[1].item(), mean[2].item()]}, "mean.json")
         return mean
 
     def get_RGB_sd(self, mean, image_size=(640, 640), batch_size=300):
-        device = main.get_device()
-        sd = torch.zeros(3, device=device)
+        sd = torch.zeros(3, device=DEVICE)
         for i_batch, sample_batched in enumerate(torch.utils.data.DataLoader(self.dataset, batch_size)):
-            imgs = sample_batched[0].to(device)
+            imgs = sample_batched[0].to(DEVICE)
             # mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1) => adapt to same number of dimensions
             # to apply the substraction filter wise and element wise
             s = ((imgs - mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1)).pow(2))
@@ -113,7 +115,7 @@ def print_img_infos_datasets():
     HYPER_PARAMETER_CONFIG = "hyper_parameters.json"
 
     file_args = read_json_config(DATASET_FILE_PATHS_CONFIG)
-    hyper_parameters = read_json_config(HYPER_PARAMETER_CONFIG)
+
 
     coco_train_set = dset.CocoDetection(root=file_args["train"]["img"],
                                         annFile=file_args["train"]["capt"],
