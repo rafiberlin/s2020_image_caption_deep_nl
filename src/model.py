@@ -345,6 +345,15 @@ class CocoDatasetWrapper(Dataset):
         self.caption_number = caption_number
     @classmethod
     def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
+        """
+        For dataset_name="train", the data will be shuffled, randomly flipped and cropped. For the rest, just a center
+        crop without shuffling
+        :param hparams:
+        :param c_vectorizer:
+        :param dataset_name:
+        :param image_dir:
+        :return:
+        """
         train_file = hparams[dataset_name]
         if image_dir == None:
             image_dir = os.path.join(hparams['root'], train_file)
@@ -361,19 +370,19 @@ class CocoDatasetWrapper(Dataset):
                      "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
         rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
         rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
-        # TODO create a testing split, there is only training and val currently...
         transform_pipeline = None
         img_size = hparams['image_size']
         #Most on the example in pytorch have this minimum size before cropping
         assert img_size >= 256
+        cropsize = hparams["crop_size"]
+        # Most on the example in pytorch have this minimum crop size for random cropping
+        assert cropsize >= 224
         if dataset_name == "train":
             shuffle = hparams["shuffle"]
             if hparams["use_pixel_normalization"]:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                    # transforms.Resize((640, 640)),
                                     transforms.Resize((img_size, img_size)),
-                                    # transforms.CenterCrop(IMAGE_SIZE),
-                                    transforms.RandomCrop(224),
+                                    transforms.RandomCrop(cropsize),
                                     transforms.RandomHorizontalFlip(),
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
@@ -381,10 +390,8 @@ class CocoDatasetWrapper(Dataset):
                                                          ])
             else:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                    # transforms.Resize((640, 640)),
                                     transforms.Resize((img_size, img_size)),
-                                    # transforms.CenterCrop(IMAGE_SIZE),
-                                    transforms.RandomCrop(224),
+                                    transforms.RandomCrop(cropsize),
                                     transforms.RandomHorizontalFlip(),
                                     transforms.ToTensor()])
         else:
@@ -392,7 +399,7 @@ class CocoDatasetWrapper(Dataset):
             if hparams["use_pixel_normalization"]:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
                                     transforms.Resize((img_size, img_size)),
-                                    transforms.CenterCrop(224),
+                                    transforms.CenterCrop(cropsize),
                                     transforms.ToTensor(),
                                     transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
                                                          (0.229, 0.224, 0.225))
@@ -400,7 +407,7 @@ class CocoDatasetWrapper(Dataset):
             else:
                 transforms.Compose([prep.CenteringPad(),
                                     transforms.Resize((img_size, img_size)),
-                                    transforms.CenterCrop(224),
+                                    transforms.CenterCrop(cropsize),
                                     transforms.ToTensor()
                                     ])
         coco_train_set = dset.CocoDetection(root=image_dir,
@@ -937,7 +944,7 @@ def create_model_name(hparams):
     rnn_bi = ""
     if hparams["rnn_bidirection"]:
         rnn_bi = "_bd"
-    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{rnn_bi}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}.{extension}"
+    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_cs{hparams['crop_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{rnn_bi}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}.{extension}"
     return model_name
 
 

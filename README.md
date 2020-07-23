@@ -77,6 +77,7 @@ larger or smaller embedding dimensions.
 * use_pixel_normalization: if set to true, use the values recommended in the pytorch documentation for pretrained model.
 * image_size: value between 256 and 640. This is the size of the image being used. Regardless of the defined size, 
 a random center crop of size 224 by 224 is done during training (and a regular center crop for evaluation and test)
+* crop_size: used for randomly cropping the image by size crop_size*crop_size. Minimum value is 224.
 * caption_number; the number of captions to be used by the model. Values between 1 and 5.
 * cutoff: Indicates the minimum number of occurrences for a caption word to avoid being flagged as unknown.
 * clip_grad: Allows to clip the gradient, if the total loss (or rather the calculated model weights) becomes 
