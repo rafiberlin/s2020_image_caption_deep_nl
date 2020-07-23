@@ -132,8 +132,11 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     network.train()
     scalar_total_loss = 0
     previous_val_loss = float('inf')
+    previous_total_loss = float('inf')
     break_early_val_loss = False
+    break_early = True
     temp_val_model = os.path.join(model_dir, f"val_loss_{model_name}")
+    temp_model = os.path.join(model_dir, f"temp_{model_name}")
     for epoch in tqdm(range(hparams["num_epochs"])):
         total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
@@ -177,6 +180,14 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
                 else:
                     torch.save(network.state_dict(), temp_val_model)
                 previous_val_loss = val_loss
+            if hparams["keep_best_total_loss"]:
+                if scalar_total_loss > previous_total_loss:
+                    print("Total Loss got worse, reload last temporary model, break learning loop.")
+                    break_early = True
+                    break
+                else:
+                    torch.save(network.state_dict(), temp_model)
+                    previous_total_loss = scalar_total_loss
             if hparams["save_pending_model"]:
                 temp_model = os.path.join(model_dir, f"epoch_{str(epoch + 1)}_{model_name}")
                 torch.save(network.state_dict(), temp_model)
@@ -191,6 +202,11 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         network.load_state_dict(torch.load(temp_val_model))
         print("Best Validation loss:", previous_val_loss)
         os.remove(Path(temp_val_model))
+    if break_early and not break_early_val_loss:
+        print("Reload last good model before the total loss got worse")
+        network.load_state_dict(torch.load(temp_model))
+        print("Best Total loss:", previous_total_loss)
+        os.remove(Path(temp_model))
     torch.save(network.state_dict(), model_path)
     if tb:
         tb.close()

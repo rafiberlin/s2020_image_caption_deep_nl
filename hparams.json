@@ -48,5 +48,6 @@
    "clip_grad": 1.0,
    "weight_decay": 0.00001,
    "compute_val_loss": false,
+   "keep_best_total_loss": true,
    "gold_eval_with_original": false
 }
