@@ -36,7 +36,7 @@
    "drop_out_prob" : 0.2,
    "sampling_method": null,
    "beam_width": 3,
-   "training_report_frequency" : 1,
+   "training_report_frequency" : 5,
    "save_pending_model" : false,
    "last_saved_model" : null,
    "use_tensorboard" : false,
