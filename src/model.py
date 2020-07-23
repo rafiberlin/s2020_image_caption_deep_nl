@@ -19,7 +19,6 @@ from pycocoevalcap.bleu.bleu import Bleu
 from scipy.stats.mstats import gmean
 from tqdm import tqdm
 
-
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -500,6 +499,9 @@ class BleuScorer(object):
             beam_width = hparams["beam_width"]
             bw = f"_bw{hparams['beam_width']}"
             sampler = lambda x, y: predict_beam(x, y, v, beam_width)
+        elif hparams["sampling_method"] == "sample_search":
+            bw = "_sc"
+            sampler = lambda x, y: predict_greedy_sample(x, y, end_token_idx)
         else:
             sampler = lambda x, y: predict_greedy(x, y, end_token_idx)
 
@@ -679,6 +681,32 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width=3):
     return new_seq[best_k].unsqueeze(0).unsqueeze(0)
 
 
+def predict_greedy_sample(model, input_for_prediction, end_token_idx=3, found_sequences=0):
+    """
+    Only for dev purposes, allow us to get some outputs.
+    :param model:
+    :param input_for_prediction:
+    :param end_token_idx:
+    :param prediction_number:
+    :param found_sequences:
+    :return:
+    """
+    seq_len = input_for_prediction[1].shape[2]
+    image, vectorized_seq = input_for_prediction
+    model.eval()
+    prediction_number = 1
+    prediction_number = prediction_number - found_sequences
+    for idx in range(seq_len - 1):
+        pred = model(image, vectorized_seq)
+        first_predicted = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
+        indices = first_predicted.indices
+        idx_found_sequences = indices[indices == end_token_idx]
+        found_sequences = idx_found_sequences.sum()
+        vectorized_seq[0][0][idx + 1] = indices[0]
+        if found_sequences > 0:
+            break
+    return vectorized_seq
+
 def predict_greedy(model, input_for_prediction, end_token_idx=3, found_sequences=0):
     """
     Only for dev purposes, allow us to get some outputs.
@@ -692,6 +720,7 @@ def predict_greedy(model, input_for_prediction, end_token_idx=3, found_sequences
     seq_len = input_for_prediction[1].shape[2]
     image, vectorized_seq = input_for_prediction
     # first dimension 0 keeps indices, 1 keeps probaility
+
     model.eval()
     prediction_number = 1
     prediction_number = prediction_number - found_sequences
