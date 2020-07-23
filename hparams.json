@@ -1,5 +1,5 @@
 {
-   "batch_size": 32,
+   "batch_size": 8,
    "hidden_dim": 512,
    "rnn_layers" : 2,
    "shuffle" : true,
@@ -46,6 +46,6 @@
    "cutoff": 5,
    "clip_grad": 1.0,
    "weight_decay": 0.00001,
-   "compute_val_loss": true,
+   "compute_val_loss": false,
    "gold_eval_with_original": false
 }

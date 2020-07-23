@@ -183,21 +183,24 @@ class RNNModel(nn.Module):
 
     def forward(self, imgs, labels):
         batch_size = imgs.shape[0]
+        number_captions = labels.shape[1]
         image_hidden = self.image_cnn(imgs)
         # Image hidden is used to init the hidden states of the lstm cells.
         # it must have the shape (number of layers *time number of direction) * batch size * hidden dim
         # size we just do 1 layer 1 direction, unsqueeze(0) is fine
         #image_hidden = image_hidden.unsqueeze(dim=0)
-        image_hidden = image_hidden.unsqueeze(dim=1)
+
+        # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
+        image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(dim=1).repeat(1,number_captions,1,1)
         # when image_hidden needs to be provided for lstm,
         # we need to init the memory cell as well
         #lstm_cell_initial_state = torch.zeros((self.rnn_layers, image_hidden.shape[1],image_hidden.shape[2]), dtype=torch.float, device=current_device)
         embeds = self.embeddings(labels)
-        # for a given sample, it "flattens" all the captions into the second dimension
-        # we get from a 4 dimension shape: batch_size * number of captions * caption length * embdeing dimension
-        # to a 3 dimension shape batch_size * (number of captions * caption length) * embdeing dimension
-        embeds = embeds.reshape((batch_size, -1, self.embedding_dim))
-        embeds = torch.cat((image_hidden, embeds), dim=1)
+
+        # adds the image for eac batch sampe and caption
+        embeds = torch.cat((image_hidden, embeds), dim=2)
+        embeds = embeds.reshape((batch_size*number_captions, -1, self.embedding_dim))
+
         # Recommendation: use a single input for lstm layer (no special initialization of the hidden layer):
         # lstm_out, hidden = self.lstm(embeds, (image_hidden, lstm_cell_initial_state))
         #Handles stacked RNN Layers

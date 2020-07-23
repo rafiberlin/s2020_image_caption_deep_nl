@@ -141,12 +141,11 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
                                                                                                       device)
             del current_batch
             optimizer.zero_grad()
-            # flatten all caption , flatten all batch and sequences, to make its category comparable
-            # for the loss function
-            out_captions = out_captions.reshape(-1)
-            log_prediction = network(images, in_captions).reshape(out_captions.shape[0], -1)
-            # Warning if we are unable to learn, use the contiguous function of the tensor
-            # it insures that the sequence is not messed up during reshape
+            # The input for the NLL Loss is batch times number of classes (vocabulary in our case)
+            # times sequence length => hence the permutation
+            log_prediction = network(images, in_captions).permute(0, 2, 1)
+            batch_times_caption = log_prediction.shape[0]
+            out_captions = out_captions.reshape(batch_times_caption, -1)
             loss = loss_function(log_prediction, out_captions)
             total_loss += loss
             loss.backward()
