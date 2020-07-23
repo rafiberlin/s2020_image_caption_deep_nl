@@ -272,11 +272,6 @@ def main():
         print("CUDA GPU is available", "Number of machines:", torch.cuda.device_count())
 
     prep.set_seed_everywhere(SEED)
-    img_list = None
-    if hparams["debug"]:
-        # The image list help to retrieve only captions corresponding to break_training_loop_percentage in hparams. Helps with memory issues...
-        img_list = prep.get_current_images_id(hparams, trainset_name)
-    annotation_without_punctuation = hparams["annotation_without_punctuation"]
     cleaned_captions = prep.get_captions(hparams, trainset_name)
     cutoff_for_unknown_words = hparams["cutoff"]
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions, cutoff_for_unknown_words)
