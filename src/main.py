@@ -134,7 +134,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     previous_val_loss = float('inf')
     previous_total_loss = float('inf')
     break_early_val_loss = False
-    break_early = True
+    break_early = False
     temp_val_model = os.path.join(model_dir, f"val_loss_{model_name}")
     temp_model = os.path.join(model_dir, f"temp_{model_name}")
     for epoch in tqdm(range(hparams["num_epochs"])):
