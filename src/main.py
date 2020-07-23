@@ -223,11 +223,16 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         print("Total Loss", scalar_total_loss)
 
     if total_val_loss_tracking:
-        with open(os.path.join(model_dir, f"val_loss_{model_name}.json"), "w") as f:
+        path = os.path.join(model_dir, f"val_loss_{model_name}.json")
+        with open(path, "w") as f:
             json.dump(total_val_loss_tracking, f)
+        print("Saved Val Loss Stats", path)
     if total_loss_tracking:
-        with open(os.path.join(model_dir, f"loss_{model_name}.json"), "w") as f:
-            json.dump(total_loss_tracking, f)
+        path = os.path.join(model_dir, f"loss_{model_name}.json")
+        with open(path, "w") as f:
+            json.dump(os.path.join(model_dir, f"loss_{model_name}.json"), f)
+        print("Saved Loss Stats", path)
+
     torch.save(network.state_dict(), model_path)
     if tb:
         tb.close()
