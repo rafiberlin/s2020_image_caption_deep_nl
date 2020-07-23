@@ -20,7 +20,7 @@
    "use_padding_idx": true,
    "rgb_stats": "rgb_stats.json",
    "timestamp_prefix": "%d%b%Y_%H_%M_%S_%f",
-   "model_storage": "../model_storage",
+   "model_storage": "./model_storage",
    "model_name": "_.pt",
    "num_epochs": 200,
    "lr": 0.001,
@@ -48,6 +48,7 @@
    "clip_grad": null,
    "weight_decay": 0.00001,
    "compute_val_loss": false,
+   "keep_best_val_loss": false,
    "keep_best_total_loss": true,
    "gold_eval_with_original": true
 }

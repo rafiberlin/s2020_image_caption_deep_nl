@@ -167,6 +167,7 @@ class CenteringPad(object):
 
     def __init__(self, fill=0, padding_mode='constant', target_resolution=(640, 640)):
         assert isinstance(fill, (numbers.Number, str, tuple))
+        self.padding = self.get_padding(img)
         assert padding_mode in ['constant', 'edge', 'reflect', 'symmetric']
         assert target_resolution[0] == target_resolution[1]
         self.padding = None
@@ -182,7 +183,6 @@ class CenteringPad(object):
         Returns:
             PIL Image: Padded image.
         """
-        self.padding = self.get_padding(img)
         return pad(img, self.padding, self.fill, self.padding_mode)
 
     def get_padding(self, image):

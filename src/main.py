@@ -12,6 +12,7 @@ import preprocessing as prep
 import argparse
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
+import json
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
 GLOVE_SCRIPT = "./util/glove_conv.py"
@@ -142,6 +143,8 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     break_early = False
     temp_val_model = os.path.join(model_dir, f"val_loss_{model_name}")
     temp_model = os.path.join(model_dir, f"temp_{model_name}")
+    total_val_loss_tracking = []
+    total_loss_tracking = []
     for epoch in tqdm(range(hparams["num_epochs"])):
         total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
@@ -175,15 +178,20 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         if (epoch + 1) % hparams["training_report_frequency"] == 0:
             scalar_total_loss = total_loss.item()
             print("\nTotal Loss:", scalar_total_loss, "Epoch:", epoch + 1)
+            # Can be used to make graphs...
+            total_loss_tracking.append((epoch + 1, scalar_total_loss))
             if hparams["compute_val_loss"]:
                 val_loss = compute_loss_on_validation(val_loader, device, network)
                 print("Total Validation Loss:", val_loss, "Epoch:", epoch + 1, "\n")
-                if val_loss >= previous_val_loss:
-                    print("Total Validation Loss got worse, reload last temporary model, break learning loop.")
-                    break_early_val_loss = True
-                    break
-                else:
-                    torch.save(network.state_dict(), temp_val_model)
+                # Can be used to make graphs..
+                total_val_loss_tracking((epoch + 1, val_loss))
+                if hparams["keep_best_val_loss"]:
+                    if val_loss >= previous_val_loss:
+                        print("Total Validation Loss got worse, reload last temporary model, break learning loop.")
+                        break_early_val_loss = True
+                        break
+                    else:
+                        torch.save(network.state_dict(), temp_val_model)
                 previous_val_loss = val_loss
             if hparams["keep_best_total_loss"]:
                 if scalar_total_loss > previous_total_loss:
@@ -201,7 +209,6 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         del total_loss
     end = timer()
     print("Overall Learning Time", end - start)
-    print("Total Loss", scalar_total_loss)
     if break_early_val_loss:
         print("Reload last good model before the validation got worse")
         network.load_state_dict(torch.load(temp_val_model))
@@ -212,6 +219,15 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         network.load_state_dict(torch.load(temp_model))
         print("Best Total loss:", previous_total_loss)
         os.remove(Path(temp_model))
+    else:
+        print("Total Loss", scalar_total_loss)
+
+    if total_val_loss_tracking:
+        with open(os.path.join(model_dir, f"val_loss_{model_name}.json"), "w") as f:
+            json.dump(total_val_loss_tracking, f)
+    if total_loss_tracking:
+        with open(os.path.join(model_dir, f"loss_{model_name}.json"), "w") as f:
+            json.dump(total_loss_tracking, f)
     torch.save(network.state_dict(), model_path)
     if tb:
         tb.close()
