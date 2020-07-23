@@ -303,6 +303,7 @@ class Vocabulary(object):
         return len(self._token_to_idx)
 
 
+
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
@@ -313,39 +314,14 @@ class CocoDatasetWrapper(Dataset):
         self.caption_number = caption_number
 
     @classmethod
-    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
-        """
-        For dataset_name="train", the data will be shuffled, randomly flipped and cropped. For the rest, just a center
-        crop without shuffling
-        :param hparams:
-        :param c_vectorizer:
-        :param dataset_name:
-        :param image_dir:
-        :return:
-        """
-        train_file = hparams[dataset_name]
-        if image_dir == None:
-            image_dir = os.path.join(hparams['root'], train_file)
-        else:
-            image_dir = os.path.join(hparams['root'], image_dir)
-        caption_file_path = prep.get_correct_annotation_file(hparams, dataset_name)
-        print("Image dir:", image_dir)
-        print("Caption file path:", caption_file_path)
-
-        # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
-        stats_rounding = hparams["rounding"]
-
-        rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
-                     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
-        rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
-        rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
-        transform_pipeline = None
+    def _get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
         img_size = hparams['image_size']
         # Most on the example in pytorch have this minimum size before cropping
         assert img_size >= 256
         cropsize = hparams["crop_size"]
         # Most on the example in pytorch have this minimum crop size for random cropping
         assert cropsize >= 224
+
         if dataset_name == "train":
             shuffle = hparams["shuffle"]
             if hparams["use_pixel_normalization"]:
@@ -381,6 +357,37 @@ class CocoDatasetWrapper(Dataset):
                                     transforms.CenterCrop(cropsize),
                                     transforms.ToTensor()
                                     ])
+        return transform_pipeline, shuffle
+
+    @classmethod
+    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
+        """
+        For dataset_name="train", the data will be shuffled, randomly flipped and cropped. For the rest, just a center
+        crop without shuffling
+        :param hparams:
+        :param c_vectorizer:
+        :param dataset_name:
+        :param image_dir:
+        :return:
+        """
+        train_file = hparams[dataset_name]
+        if image_dir == None:
+            image_dir = os.path.join(hparams['root'], train_file)
+        else:
+            image_dir = os.path.join(hparams['root'], image_dir)
+        caption_file_path = prep.get_correct_annotation_file(hparams, dataset_name)
+        print("Image dir:", image_dir)
+        print("Caption file path:", caption_file_path)
+
+        # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
+        stats_rounding = hparams["rounding"]
+
+        rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
+                     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
+        rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
+        rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
+        transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(hparams, dataset_name)
+
         coco_train_set = dset.CocoDetection(root=image_dir,
                                             annFile=caption_file_path,
                                             transform=transform_pipeline
