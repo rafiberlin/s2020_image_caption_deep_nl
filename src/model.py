@@ -71,11 +71,11 @@ class VGG16Module(nn.Module):
             with torch.no_grad():
                 y = self.vgg16(img)
             y = self.linear(y)
-            #y = y.relu()
+            # y = y.relu()
         else:
             y = self.vgg16(img)
             y = self.linear(y)
-            #y = y.relu()
+            # y = y.relu()
         return y
 
 
@@ -121,11 +121,11 @@ class MobileNetModule(nn.Module):
             with torch.no_grad():
                 y = self.mobile(img)
             y = self.linear(y)
-            #y = y.relu()
+            # y = y.relu()
         else:
             y = self.mobile(img)
             y = self.linear(y)
-            #y = y.relu()
+            # y = y.relu()
         return y
 
 
@@ -153,10 +153,10 @@ class RNNModel(nn.Module):
         self.drop_out_prob = drop_out_prob
         if cnn_model == "vgg16":
             print("Using vgg16...")
-            self.image_cnn = VGG16Module(self.embedding_dim, self.improve_cnn )
+            self.image_cnn = VGG16Module(self.embedding_dim, self.improve_cnn)
         elif cnn_model == "mobilenet":
             print("Using mobilenet...")
-            self.image_cnn = MobileNetModule(self.embedding_dim, self.improve_cnn )
+            self.image_cnn = MobileNetModule(self.embedding_dim, self.improve_cnn)
         elif cnn_model == "resnet50":
             print("Using resnet50...")
             self.image_cnn = Resnet50Module(self.embedding_dim, self.improve_cnn)
@@ -164,11 +164,13 @@ class RNNModel(nn.Module):
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(self.embedding_dim)
         if self.rnn_model == "gru":
-            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
+            self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True,
+                              dropout=drop_out_prob)
         else:
-            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True, dropout=drop_out_prob)
+            self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True,
+                               dropout=drop_out_prob)
         self.linear = nn.Linear(self.hidden_dim, self.n_classes)
-        #self.drop_layer = nn.Dropout(p=drop_out_prob)
+        # self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, imgs, labels):
         batch_size = imgs.shape[0]
@@ -176,13 +178,13 @@ class RNNModel(nn.Module):
         image_hidden = self.image_cnn(imgs)
 
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
-        image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(dim=1).repeat(1,number_captions,1,1)
+        image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(dim=1).repeat(1, number_captions, 1, 1)
         embeds = self.embeddings(labels)
 
         # adds the image for each batch sample and caption as the first input of the sequence.
         # its output will be discarded at the return statement, we don't use it in the loss function
         embeds = torch.cat((image_hidden, embeds), dim=2)
-        embeds = embeds.reshape((batch_size*number_captions, -1, self.embedding_dim))
+        embeds = embeds.reshape((batch_size * number_captions, -1, self.embedding_dim))
 
         if self.rnn_model == "gru":
             lstm_out, _ = self.rnn(embeds)
@@ -310,6 +312,7 @@ class CocoDatasetWrapper(Dataset):
         if caption_number > 5:
             caption_number = 5
         self.caption_number = caption_number
+
     @classmethod
     def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None):
         """
@@ -339,7 +342,7 @@ class CocoDatasetWrapper(Dataset):
         rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
         transform_pipeline = None
         img_size = hparams['image_size']
-        #Most on the example in pytorch have this minimum size before cropping
+        # Most on the example in pytorch have this minimum size before cropping
         assert img_size >= 256
         cropsize = hparams["crop_size"]
         # Most on the example in pytorch have this minimum crop size for random cropping
@@ -348,28 +351,30 @@ class CocoDatasetWrapper(Dataset):
             shuffle = hparams["shuffle"]
             if hparams["use_pixel_normalization"]:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                    transforms.Resize((img_size, img_size)),
-                                    transforms.RandomCrop(cropsize),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
-                                                         (0.229, 0.224, 0.225))
+                                                         transforms.Resize((img_size, img_size)),
+                                                         transforms.RandomCrop(cropsize),
+                                                         transforms.RandomHorizontalFlip(),
+                                                         transforms.ToTensor(),
+                                                         transforms.Normalize((0.485, 0.456, 0.406),
+                                                                              # recommended resnet config
+                                                                              (0.229, 0.224, 0.225))
                                                          ])
             else:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                    transforms.Resize((img_size, img_size)),
-                                    transforms.RandomCrop(cropsize),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.ToTensor()])
+                                                         transforms.Resize((img_size, img_size)),
+                                                         transforms.RandomCrop(cropsize),
+                                                         transforms.RandomHorizontalFlip(),
+                                                         transforms.ToTensor()])
         else:
             shuffle = False
             if hparams["use_pixel_normalization"]:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                    transforms.Resize((img_size, img_size)),
-                                    transforms.CenterCrop(cropsize),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize((0.485, 0.456, 0.406), # recommended resnet config
-                                                         (0.229, 0.224, 0.225))
+                                                         transforms.Resize((img_size, img_size)),
+                                                         transforms.CenterCrop(cropsize),
+                                                         transforms.ToTensor(),
+                                                         transforms.Normalize((0.485, 0.456, 0.406),
+                                                                              # recommended resnet config
+                                                                              (0.229, 0.224, 0.225))
                                                          ])
             else:
                 transforms.Compose([prep.CenteringPad(),
@@ -386,7 +391,8 @@ class CocoDatasetWrapper(Dataset):
         coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer, caption_number)
         batch_size = hparams["batch_size"]
 
-        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True, shuffle=shuffle)
+        train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True,
+                                                   shuffle=shuffle)
         return train_loader
 
     @classmethod
@@ -416,7 +422,8 @@ class CocoDatasetWrapper(Dataset):
 
         # only use 5 or less captions to be able to use faster vectorized operations
         # avoid exceptions in the collate function in the fetch part of the dataloader
-        return image, captions[:self.caption_number], (vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
+        return image, captions[:self.caption_number], (
+        vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
 
 
 class BleuScorer(object):
@@ -445,7 +452,7 @@ class BleuScorer(object):
                 for c in list(combinations(range(caption_number), caption_number - 1)):
                     for hypothesis_idx in range(caption_number):
                         if hypothesis_idx not in c:
-                            #gold_eval_with_original with false will have reference captions with <UNK> token within
+                            # gold_eval_with_original with false will have reference captions with <UNK> token within
                             if hparams["gold_eval_with_original"]:
                                 hypothesis[hypothesis_idx][image_id.item()] = [
                                     annotations[hypothesis_idx]["caption"][sample_idx]]
@@ -470,7 +477,8 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_gold{gold_with_original}.json")
+            filepath = os.path.join(hparams["model_storage"],
+                                    timestamp + f"{prefix}_bleu_gold{gold_with_original}.json")
             prep.create_json_config(pd_score.to_dict(), filepath)
 
         return pd_score
@@ -491,9 +499,9 @@ class BleuScorer(object):
         if hparams["sampling_method"] == "beam_search":
             beam_width = hparams["beam_width"]
             bw = f"_bw{hparams['beam_width']}"
-            sampler = lambda x,y: predict_beam(x,y,v,beam_width)
+            sampler = lambda x, y: predict_beam(x, y, v, beam_width)
         else:
-            sampler = lambda x,y: predict_greedy(x,y,end_token_idx)
+            sampler = lambda x, y: predict_greedy(x, y, end_token_idx)
 
         for idx, current_batch in enumerate(train_loader):
             imgs, annotations, _ = current_batch
@@ -513,7 +521,8 @@ class BleuScorer(object):
                     references[_id] = [annotations[annotation_idx]["caption"][sample_idx] for annotation_idx in
                                        range(caption_number)]
                 else:
-                    references[_id] = [v.decode(v.vectorize(annotations[annotation_idx]["caption"][sample_idx])[0]) for annotation_idx in
+                    references[_id] = [v.decode(v.vectorize(annotations[annotation_idx]["caption"][sample_idx])[0]) for
+                                       annotation_idx in
                                        range(caption_number)]
                 if hparams["print_prediction"]:
                     print("\n#########################")
@@ -530,8 +539,10 @@ class BleuScorer(object):
         if hparams["save_eval_results"]:
             dt = datetime.now(tz=None)
             timestamp = dt.strftime(hparams["timestamp_prefix"])
-            filepath = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction{bw}{gold_with_original}.json")
-            filepath_2 = os.path.join(hparams["model_storage"], timestamp + f"{prefix}_bleu_prediction_scores{bw}{gold_with_original}.json")
+            filepath = os.path.join(hparams["model_storage"],
+                                    timestamp + f"{prefix}_bleu_prediction{bw}{gold_with_original}.json")
+            filepath_2 = os.path.join(hparams["model_storage"],
+                                      timestamp + f"{prefix}_bleu_prediction_scores{bw}{gold_with_original}.json")
             prep.create_json_config({k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
             prep.create_json_config([score], filepath_2)
 
@@ -587,19 +598,21 @@ class BleuScorer(object):
         print("Weighted Current Bleu Scores:\n", train_bleu_score_pd.mean())
         print("Geometric Mean Current Bleu Score:\n", gmean(train_bleu_score_pd))
         print("\nRun complete evaluation for: gold")
-        bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx, prefix=prefix)
+        bleu_score_human_average = BleuScorer.evaluate_gold(hparams, loader, idx_break=break_training_loop_idx,
+                                                            prefix=prefix)
         bleu_score_human_average_np = bleu_score_human_average.to_numpy().reshape(-1)
         print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
         print("Weighted Gold Bleu Scores:\n", bleu_score_human_average_np.mean())
         print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
         print("##########################################################")
 
-def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
+
+def predict_beam(model, input_for_prediction, c_vectorizer, beam_width=3):
     """
     WIP implementation of beam search
     """
 
-    seq_len = 10 # input_for_prediction[1].shape[2]
+    seq_len = 10  # input_for_prediction[1].shape[2]
     device = next(model.parameters()).device
 
     image, vectorized_seq = input_for_prediction
@@ -628,16 +641,16 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
     # For every sequence index consider all previous beam_width possibilities
     for idx in range(1, seq_len):
         for k in range(beam_width):
-            i = track_best[0,k,idx-1]
-            p = track_best[1,k,idx-1]
-            best_k = track_best[2,k,idx-1].long()
+            i = track_best[0, k, idx - 1]
+            p = track_best[1, k, idx - 1]
+            best_k = track_best[2, k, idx - 1].long()
 
             # Build new sequence with previous index
             new_seq[k][idx] = i
 
-            for o in reversed(range(1,idx)):
-                new_seq[k][o] = track_best[0,best_k,o-1]
-                best_k = track_best[2,best_k,o-1].long()
+            for o in reversed(range(1, idx)):
+                new_seq[k][o] = track_best[0, best_k, o - 1]
+                best_k = track_best[2, best_k, o - 1].long()
 
             # Predict new indices and rank beam_width best
             new_input = (image, new_seq[k].unsqueeze(0).unsqueeze(0))
@@ -655,12 +668,12 @@ def predict_beam(model, input_for_prediction, c_vectorizer, beam_width = 3):
             k_idx = index // vocab_size
             word_idx = index % vocab_size
 
-            track_best[0,i,idx] = word_idx
-            track_best[1,i,idx] = log_prob
-            track_best[2,i,idx] = k_idx
+            track_best[0, i, idx] = word_idx
+            track_best[1, i, idx] = log_prob
+            track_best[2, i, idx] = k_idx
 
     # Find best result
-    last_col = track_best[1,:,seq_len-1]
+    last_col = track_best[1, :, seq_len - 1]
     best_k = torch.argmax(last_col, dim=0)
 
     return new_seq[best_k].unsqueeze(0).unsqueeze(0)
@@ -721,8 +734,9 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
         print("GloVe embedding size:", glove_model.vector_size)
     else:
         embedding = nn.Embedding(num_embeddings=vocabulary_size,
-                     embedding_dim=hparams["embedding_dim"], padding_idx=padding_idx)
+                                 embedding_dim=hparams["embedding_dim"], padding_idx=padding_idx)
     return embedding
+
 
 class CaptionVectorizer(object):
     """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
@@ -816,6 +830,7 @@ class CaptionVectorizer(object):
     def to_serializable(self):
         return {'caption_vocab': self.caption_vocab.to_serializable()}
 
+
 def generate_batches(dataset, batch_size, shuffle=True,
                      drop_last=True, device="cpu"):
     """
@@ -830,6 +845,7 @@ def generate_batches(dataset, batch_size, shuffle=True,
         for name, tensor in data_dict.items():
             out_data_dict[name] = data_dict[name].to(device)
         yield out_data_dict
+
 
 class SequenceVocabulary(Vocabulary):
     def __init__(self, token_to_idx=None, unk_token="<UNK>",
@@ -907,5 +923,3 @@ def create_model_name(hparams):
 
     model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_cs{hparams['crop_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}.{extension}"
     return model_name
-
-

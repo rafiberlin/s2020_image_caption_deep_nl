@@ -12,11 +12,13 @@ import preprocessing as prep
 import argparse
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
+
 HYPER_PARAMETER_CONFIG = "./hparams.json"
 GLOVE_SCRIPT = "./util/glove_conv.py"
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1
+
 
 def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
     """
@@ -34,14 +36,15 @@ def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
     if hparams["debug"]:
         break_training_loop_percentage = hparams["break_training_loop_percentage"]
         break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
-        break_val_loop_idx = max(int(len(val_loader)*break_training_loop_percentage/100) - 1, 0)
-        break_test_loop_idx = max(int(len(test_loader)*break_training_loop_percentage/100) - 1, 0)
+        break_val_loop_idx = max(int(len(val_loader) * break_training_loop_percentage / 100) - 1, 0)
+        break_test_loop_idx = max(int(len(test_loader) * break_training_loop_percentage / 100) - 1, 0)
     else:
         break_training_loop_idx = len(train_loader)
         break_val_loop_idx = len(val_loader)
         break_test_loop_idx = len(test_loader)
 
     return break_training_loop_idx, break_val_loop_idx, break_test_loop_idx
+
 
 def init_model(hparams, network, force_training=False):
     """
@@ -79,6 +82,7 @@ def init_model(hparams, network, force_training=False):
                 network.load_state_dict(torch.load(last_model))
     return start_training
 
+
 def compute_loss_on_validation(val_loader, device, network):
     val_total_loss = torch.zeros(1, device=device)
     val_loss_function = nn.NLLLoss().to(device)
@@ -95,6 +99,7 @@ def compute_loss_on_validation(val_loader, device, network):
             del val_in_captions
             del val_out_captions
     return val_total_loss.item()
+
 
 def train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader):
     """
@@ -153,7 +158,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             total_loss += loss
             loss.backward()
 
-            #Should be helpful if we get NaN loss
+            # Should be helpful if we get NaN loss
             if hparams["clip_grad"]:
                 torch.nn.utils.clip_grad_norm_(network.parameters(), hparams["clip_grad"])
             # Use optimizer to take gradient step
@@ -235,7 +240,7 @@ def main():
     torch.cuda.empty_cache()
 
     trainset_name = "train"
-    #trainset_name = "val"
+    # trainset_name = "val"
     valset_name = "val"
     testset_name = "test"
     device = hparams["device"]
@@ -251,7 +256,8 @@ def main():
         # The image list help to retrieve only captions corresponding to break_training_loop_percentage in hparams. Helps with memory issues...
         img_list = prep.get_current_images_id(hparams, trainset_name)
     annotation_without_punctuation = hparams["annotation_without_punctuation"]
-    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name, img_list, annotation_without_punctuation)
+    cleaned_captions = prep.create_list_of_captions_and_clean(hparams, trainset_name, img_list,
+                                                              annotation_without_punctuation)
     cutoff_for_unknown_words = hparams["cutoff"]
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions, cutoff_for_unknown_words)
     padding_idx = None
@@ -266,16 +272,19 @@ def main():
     val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
-                             cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"], rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"], improve_cnn=hparams["improve_cnn"]).to(device)
+                             cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"],
+                             rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"],
+                             improve_cnn=hparams["improve_cnn"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
-    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, train_loader, val_loader, test_loader)
+    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, train_loader,
+                                                                                             val_loader, test_loader)
 
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader)
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
-    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network,  break_val_loop_idx, "val")
+    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, break_val_loop_idx, "val")
     model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
 
 

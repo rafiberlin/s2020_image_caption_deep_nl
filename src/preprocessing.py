@@ -17,6 +17,7 @@ from urllib.request import urlopen
 from zipfile import ZipFile
 from argparse import Namespace
 
+
 def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
         json.dump(params, json_file)
@@ -225,7 +226,7 @@ def get_current_images_id(hparams, dataset_name):
 
     coco_train_set = dset.CocoDetection(root=image_dir,
                                         annFile=caption_file_path,
-                                        transform= transform_pipeline
+                                        transform=transform_pipeline
                                         )
     train_loader = torch.utils.data.DataLoader(coco_train_set, batch_size=hparams["batch_size"])
     break_training_loop_percentage = hparams["break_training_loop_percentage"]
@@ -237,6 +238,7 @@ def get_current_images_id(hparams, dataset_name):
         if idx == break_training_loop_idx:
             break
     return img_list
+
 
 def get_correct_annotation_file(hparams, name, remove_punctuation=True):
     """
@@ -252,14 +254,14 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
     caption_dir = os.path.join(hparams['root'], "annotations")
     punct = ""
     if not remove_punctuation:
-        punct="punct_"
+        punct = "punct_"
     use_reduced_set = False
     if percentage < 100:
-        save_file_path = os.path.join(caption_dir, f"{percentage}_cleaned_captions_{punct+hparams[name]}.json")
+        save_file_path = os.path.join(caption_dir, f"{percentage}_cleaned_captions_{punct + hparams[name]}.json")
         caption_file = Path(save_file_path)
         use_reduced_set = caption_file.is_file()
     if not use_reduced_set:
-        save_file_path = os.path.join(caption_dir, f"cleaned_captions_{punct+hparams[name]}.json")
+        save_file_path = os.path.join(caption_dir, f"cleaned_captions_{punct + hparams[name]}.json")
         caption_file = Path(save_file_path)
         file_available = caption_file.is_file()
     else:
@@ -267,6 +269,7 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
     if file_available:
         return save_file_path
     return None
+
 
 def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punctuation=True):
     """
@@ -281,16 +284,18 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
     punct = ""
     if not remove_punctuation:
         punct = "punct_"
-    file_path = get_cleaned_captions_path(hparams, punct+hparams[name])
+    file_path = get_cleaned_captions_path(hparams, punct + hparams[name])
     if not Path(file_path).is_file():
         file_path = get_captions_path(hparams, hparams[name])
     save_file_path = get_correct_annotation_file(hparams, name, remove_punctuation)
-    #Fallback on original files
+    # Fallback on original files
     if not Path(file_path).is_file() and not save_file_path:
-        raise Exception("Neither cleaned version of annotation files under nor original avalaible under : ", hparams["root"])
+        raise Exception("Neither cleaned version of annotation files under nor original avalaible under : ",
+                        hparams["root"])
     # If the cleaned version does not exist, create it
     if not save_file_path:
-        save_file_path = os.path.join(os.path.join(hparams['root'], "annotations"), f"cleaned_captions_{punct+hparams[name]}.json")
+        save_file_path = os.path.join(os.path.join(hparams['root'], "annotations"),
+                                      f"cleaned_captions_{punct + hparams[name]}.json")
         with open(file_path, "r") as f:
             captions = json.load(f)
             print("Cleaning captions...")
@@ -391,6 +396,7 @@ def create_cocosplit(args):
 
         print("Saved {} entries in {} and {} in {}".format(len(x), args.train, len(y), args.test))
 
+
 def reduce_cocosplit(args):
     """
     #Downloaded from github.com/akarazniewicz/cocosplit.git@master and modified to just handle annotations
@@ -416,11 +422,12 @@ def reduce_cocosplit(args):
         if args.percentage > 100:
             args.percentage = 100.0
 
-        x, _ = train_test_split(images, train_size=args.percentage/100, shuffle=True)
+        x, _ = train_test_split(images, train_size=args.percentage / 100, shuffle=True)
 
         save_coco(args.train, info, licenses, x, filter_annotations(annotations, x))
 
         print("Saved")
+
 
 def set_seed_everywhere(seed):
     """
@@ -469,15 +476,19 @@ def unzip_glove():
     zf.close()
     os.remove(temp_path)
 
-def reduce_annotation_size(annotation_directory="./data/annotations", cleaned_file_prefix="cleaned_captions_", final_percentage=10):
 
+def reduce_annotation_size(annotation_directory="./data/annotations", cleaned_file_prefix="cleaned_captions_",
+                           final_percentage=10):
     file_suffixes = ["train2017.json", "val2017.json", "test2017.json"]
 
     for fs in file_suffixes:
-        arg_for_split = Namespace(annotations= f'{annotation_directory}/{cleaned_file_prefix+fs}',
-                                  having_annotations=False, train=f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix+fs}', percentage=final_percentage)
+        arg_for_split = Namespace(annotations=f'{annotation_directory}/{cleaned_file_prefix + fs}',
+                                  having_annotations=False,
+                                  train=f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix + fs}',
+                                  percentage=final_percentage)
         reduce_cocosplit(arg_for_split)
-        print("Annotations created:", f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix+fs}')
+        print("Annotations created:", f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix + fs}')
+
 
 if __name__ == '__main__':
     hparams = read_json_config("./hparams.json")
@@ -485,11 +496,11 @@ if __name__ == '__main__':
     # Because the original test labels are missing in the Coco dataset (remember, it was meant as a competition)
     # we need to split the traning dataset into training and testing 80% / 20%
 
-    #arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
+    # arg_for_split = Namespace(annotations='../data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
     #         test='../data/annotations/cleaned_captions_test2017.json', train='../data/annotations/cleaned_captions_train2017.json', percentage=100)
-    #create_cocosplit(arg_for_split)
+    # create_cocosplit(arg_for_split)
 
-    #clean_caption_annotations(hparams, ["train", "val"],  False)
+    # clean_caption_annotations(hparams, ["train", "val"],  False)
 
     # percentage_list = [1, 2, 5, 6, 10]
     # for p in percentage_list:
