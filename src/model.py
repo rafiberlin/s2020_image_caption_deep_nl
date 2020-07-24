@@ -633,7 +633,6 @@ class BleuScorer(object):
                 img = imgs[sample_idx].unsqueeze(dim=0).to(device)
                 caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
-                network_model.predict_greedy(img)
                 predicted_label = sampler(input_for_prediction)
                 current_hypothesis = v.decode(predicted_label[0][0])
                 hypothesis[_id] = [current_hypothesis]
