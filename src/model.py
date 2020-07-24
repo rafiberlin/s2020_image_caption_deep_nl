@@ -19,6 +19,7 @@ from pycocoevalcap.bleu.bleu import Bleu
 from scipy.stats.mstats import gmean
 from tqdm import tqdm
 
+
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -184,17 +185,131 @@ class RNNModel(nn.Module):
         # its output will be discarded at the return statement, we don't use it in the loss function
         embeds = torch.cat((image_hidden, embeds), dim=2)
         embeds = embeds.reshape((batch_size * number_captions, -1, self.embedding_dim))
-
-        if self.rnn_model == "gru":
-            lstm_out, _ = self.rnn(embeds)
-        else:
-            lstm_out, _ = self.rnn(embeds)
+        lstm_out, _ = self.rnn(embeds)
 
         classes = self.linear(lstm_out)
 
         out = F.log_softmax(classes, dim=2)
         # remove the output of the first hidden state corresponding to the image output...
         return out[:, 1:, :]
+
+    def predict_greedy(self, input_for_prediction, end_token_idx=3):
+        """
+        Only for dev purposes, allow us to get some outputs.
+        :param model:
+        :param input_for_prediction:
+        :param end_token_idx:
+        :param prediction_number:
+        :param found_sequences:
+        :return:
+        """
+        seq_len = input_for_prediction[1].shape[2]
+        image, vectorized_seq = input_for_prediction
+        self.eval()
+        prediction_number = 1
+        for idx in range(seq_len - 1):
+            pred = self(image, vectorized_seq)
+            first_predicted = torch.topk(pred[0][idx], prediction_number)
+            indices = first_predicted.indices
+            idx_found_sequences = indices[indices == end_token_idx]
+            found_sequences = idx_found_sequences.sum()
+            vectorized_seq[0][0][idx + 1] = indices[0]
+            if found_sequences > 0:
+                break
+        return vectorized_seq
+
+    def predict_beam(self, input_for_prediction, beam_width=3):
+        """
+        WIP implementation of beam search
+        """
+
+        seq_len = 10  # input_for_prediction[1].shape[2]
+        device = next(self.parameters()).device
+
+        image, vectorized_seq = input_for_prediction
+
+        # first dimension 0 keeps end_token_idxindices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
+        track_best = torch.zeros((3, beam_width, seq_len)).to(device)
+        self.eval()
+
+        # Do first prediction, store #beam_width best
+        pred = self(*input_for_prediction)
+        first_predicted = torch.topk(pred[0][0], beam_width)
+        for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
+            track_best[0, i, 0] = index.item()
+            track_best[1, i, 0] = log_prob
+            track_best[2, i, 0] = -1
+
+        vocab_size = self.vocabulary_size
+
+        current_predictions = torch.zeros((beam_width * vocab_size))
+        new_seq = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
+
+        # Write start token
+        for i in range(3):
+            new_seq[i][0] = vectorized_seq[0][0][0]
+
+        # For every sequence index consider all previous beam_width possibilities
+        for idx in range(1, seq_len):
+            for k in range(beam_width):
+                i = track_best[0, k, idx - 1]
+                p = track_best[1, k, idx - 1]
+                best_k = track_best[2, k, idx - 1].long()
+
+                # Build new sequence with previous index
+                new_seq[k][idx] = i
+
+                for o in reversed(range(1, idx)):
+                    new_seq[k][o] = track_best[0, best_k, o - 1]
+                    best_k = track_best[2, best_k, o - 1].long()
+
+                # Predict new indices and rank beam_width best
+                new_input = (image, new_seq[k].unsqueeze(0).unsqueeze(0))
+                new_prediction = self(*new_input)[0][idx] + p
+
+                # Store prediction
+                current_predictions[k * vocab_size:(k + 1) * vocab_size] = new_prediction[:]
+
+            # Rank all predictions
+            new_predicted = torch.topk(current_predictions, beam_width)
+
+            # Find topk across all beam_width * vocab_size predictions
+            for i, (log_prob, index) in enumerate(zip(new_predicted.values, new_predicted.indices)):
+                # Find the correct word
+                k_idx = index // vocab_size
+                word_idx = index % vocab_size
+
+                track_best[0, i, idx] = word_idx
+                track_best[1, i, idx] = log_prob
+                track_best[2, i, idx] = k_idx
+
+        # Find best result
+        last_col = track_best[1, :, seq_len - 1]
+        best_k = torch.argmax(last_col, dim=0)
+
+        return new_seq[best_k].unsqueeze(0).unsqueeze(0)
+
+    def predict_greedy_sample(self, input_for_prediction, end_token_idx=3):
+        """
+        Only for dev purposes, allow us to get some outputs.
+        :param self:
+        :param input_for_prediction:
+        :param end_token_idx:
+        :param prediction_number:
+        :param found_sequences:
+        :return:
+        """
+        seq_len = input_for_prediction[1].shape[2]
+        image, vectorized_seq = input_for_prediction
+        self.eval()
+        prediction_number = 1
+        for idx in range(seq_len - 1):
+            pred = self(image, vectorized_seq)
+            sampled_index = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
+            vectorized_seq[0][0][idx + 1] = sampled_index
+            if sampled_index == end_token_idx:
+                break
+        return vectorized_seq
 
 
 class Vocabulary(object):
@@ -303,7 +418,6 @@ class Vocabulary(object):
         return len(self._token_to_idx)
 
 
-
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
@@ -380,12 +494,11 @@ class CocoDatasetWrapper(Dataset):
         print("Caption file path:", caption_file_path)
 
         # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
-        stats_rounding = hparams["rounding"]
-
-        rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
-                     "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
-        rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
-        rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
+        # stats_rounding = hparams["rounding"]
+        # rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
+        #              "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
+        # rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
+        # rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
         transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(hparams, dataset_name)
 
         coco_train_set = dset.CocoDetection(root=image_dir,
@@ -429,7 +542,7 @@ class CocoDatasetWrapper(Dataset):
         # only use 5 or less captions to be able to use faster vectorized operations
         # avoid exceptions in the collate function in the fetch part of the dataloader
         return image, captions[:self.caption_number], (
-        vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
+            vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
 
 
 class BleuScorer(object):
@@ -505,12 +618,12 @@ class BleuScorer(object):
         if hparams["sampling_method"] == "beam_search":
             beam_width = hparams["beam_width"]
             bw = f"_bw{hparams['beam_width']}"
-            sampler = lambda x, y: predict_beam(x, y, v, beam_width)
+            sampler = lambda x: network_model.predict_beam(x, beam_width)
         elif hparams["sampling_method"] == "sample_search":
             bw = "_sc"
-            sampler = lambda x, y: predict_greedy_sample(x, y, end_token_idx)
+            sampler = lambda x: network_model.predict_greedy_sample(x, end_token_idx)
         else:
-            sampler = lambda x, y: predict_greedy(x, y, end_token_idx)
+            sampler = lambda x: network_model.predict_greedy(x, end_token_idx)
 
         for idx, current_batch in enumerate(train_loader):
             imgs, annotations, _ = current_batch
@@ -520,8 +633,8 @@ class BleuScorer(object):
                 img = imgs[sample_idx].unsqueeze(dim=0).to(device)
                 caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
-
-                predicted_label = sampler(network_model, input_for_prediction)
+                network_model.predict_greedy(img)
+                predicted_label = sampler(input_for_prediction)
                 current_hypothesis = v.decode(predicted_label[0][0])
                 hypothesis[_id] = [current_hypothesis]
                 # with false, gold gaptions have <UNK> token
@@ -614,129 +727,6 @@ class BleuScorer(object):
         print("Weighted Gold Bleu Scores:\n", bleu_score_human_average_np.mean())
         print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
         print("##########################################################")
-
-
-def predict_beam(model, input_for_prediction, c_vectorizer, beam_width=3):
-    """
-    WIP implementation of beam search
-    """
-
-    seq_len = 10  # input_for_prediction[1].shape[2]
-    device = next(model.parameters()).device
-
-    image, vectorized_seq = input_for_prediction
-
-    # first dimension 0 keeps indices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
-    track_best = torch.zeros((3, beam_width, seq_len)).to(device)
-    model.eval()
-
-    # Do first prediction, store #beam_width best
-    pred = model(*input_for_prediction)
-    first_predicted = torch.topk(pred[0][0], beam_width)
-    for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
-        track_best[0, i, 0] = index.item()
-        track_best[1, i, 0] = log_prob
-        track_best[2, i, 0] = -1
-
-    vocab_size = len(c_vectorizer.get_vocab())
-
-    current_predictions = torch.zeros((beam_width * vocab_size))
-    new_seq = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
-
-    # Write start token
-    for i in range(3):
-        new_seq[i][0] = vectorized_seq[0][0][0]
-
-    # For every sequence index consider all previous beam_width possibilities
-    for idx in range(1, seq_len):
-        for k in range(beam_width):
-            i = track_best[0, k, idx - 1]
-            p = track_best[1, k, idx - 1]
-            best_k = track_best[2, k, idx - 1].long()
-
-            # Build new sequence with previous index
-            new_seq[k][idx] = i
-
-            for o in reversed(range(1, idx)):
-                new_seq[k][o] = track_best[0, best_k, o - 1]
-                best_k = track_best[2, best_k, o - 1].long()
-
-            # Predict new indices and rank beam_width best
-            new_input = (image, new_seq[k].unsqueeze(0).unsqueeze(0))
-            new_prediction = model(*new_input)[0][idx] + p
-
-            # Store prediction
-            current_predictions[k * vocab_size:(k + 1) * vocab_size] = new_prediction[:]
-
-        # Rank all predictions
-        new_predicted = torch.topk(current_predictions, beam_width)
-
-        # Find topk across all beam_width * vocab_size predictions
-        for i, (log_prob, index) in enumerate(zip(new_predicted.values, new_predicted.indices)):
-            # Find the correct word
-            k_idx = index // vocab_size
-            word_idx = index % vocab_size
-
-            track_best[0, i, idx] = word_idx
-            track_best[1, i, idx] = log_prob
-            track_best[2, i, idx] = k_idx
-
-    # Find best result
-    last_col = track_best[1, :, seq_len - 1]
-    best_k = torch.argmax(last_col, dim=0)
-
-    return new_seq[best_k].unsqueeze(0).unsqueeze(0)
-
-
-def predict_greedy_sample(model, input_for_prediction, end_token_idx=3):
-    """
-    Only for dev purposes, allow us to get some outputs.
-    :param model:
-    :param input_for_prediction:
-    :param end_token_idx:
-    :param prediction_number:
-    :param found_sequences:
-    :return:
-    """
-    seq_len = input_for_prediction[1].shape[2]
-    image, vectorized_seq = input_for_prediction
-    model.eval()
-    prediction_number = 1
-    for idx in range(seq_len - 1):
-        pred = model(image, vectorized_seq)
-        sampled_index = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
-        vectorized_seq[0][0][idx + 1] = sampled_index
-        if sampled_index == end_token_idx:
-            break
-    return vectorized_seq
-
-def predict_greedy(model, input_for_prediction, end_token_idx=3, found_sequences=0):
-    """
-    Only for dev purposes, allow us to get some outputs.
-    :param model:
-    :param input_for_prediction:
-    :param end_token_idx:
-    :param prediction_number:
-    :param found_sequences:
-    :return:
-    """
-    seq_len = input_for_prediction[1].shape[2]
-    image, vectorized_seq = input_for_prediction
-    # first dimension 0 keeps indices, 1 keeps probaility
-
-    model.eval()
-    prediction_number = 1
-    prediction_number = prediction_number - found_sequences
-    for idx in range(seq_len - 1):
-        pred = model(image, vectorized_seq)
-        first_predicted = torch.topk(pred[0][idx], prediction_number)
-        indices = first_predicted.indices
-        idx_found_sequences = indices[indices == end_token_idx]
-        found_sequences = idx_found_sequences.sum()
-        vectorized_seq[0][0][idx + 1] = indices[0]
-        if found_sequences > 0:
-            break
-    return vectorized_seq
 
 
 def create_embedding(hparams, c_vectorizer, padding_idx=0):

@@ -269,6 +269,7 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
         file_available = True
     if file_available:
         return save_file_path
+    print("Warning, no annotation found!")
     return None
 
 

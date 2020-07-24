@@ -300,7 +300,7 @@ def main():
         train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader)
     model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
     model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, break_val_loop_idx, "val")
-    model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
+    #model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
 
 
 if __name__ == '__main__':
