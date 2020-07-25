@@ -230,7 +230,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     if total_loss_tracking:
         path = os.path.join(model_dir, f"loss_{model_name}.json")
         with open(path, "w") as f:
-            json.dump(os.path.join(model_dir, f"loss_{model_name}.json"), f)
+            json.dump(total_loss_tracking, f)
         print("Saved Loss Stats", path)
 
     torch.save(network.state_dict(), model_path)
