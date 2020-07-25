@@ -203,91 +203,89 @@ class RNNModel(nn.Module):
         :param found_sequences:
         :return:
         """
-        seq_len = input_for_prediction[1].shape[2]
-        image, vectorized_seq = input_for_prediction
-        self.eval()
-        prediction_number = 1
-        for idx in range(seq_len - 1):
-            pred = self(image, vectorized_seq)
-            first_predicted = torch.topk(pred[0][idx], prediction_number)
-            indices = first_predicted.indices
-            idx_found_sequences = indices[indices == end_token_idx]
-            found_sequences = idx_found_sequences.sum()
-            vectorized_seq[0][0][idx + 1] = indices[0]
-            if found_sequences > 0:
-                break
-        return vectorized_seq
+        with torch.no_grad():
+            seq_len = input_for_prediction[1].shape[2]
+            image, vectorized_seq = input_for_prediction
+            prediction_number = 1
+            for idx in range(seq_len - 1):
+                pred = self(image, vectorized_seq)
+                first_predicted = torch.topk(pred[0][idx], prediction_number)
+                indices = first_predicted.indices
+                idx_found_sequences = indices[indices == end_token_idx]
+                found_sequences = idx_found_sequences.sum()
+                vectorized_seq[0][0][idx + 1] = indices[0]
+                if found_sequences > 0:
+                    break
+            return vectorized_seq
 
     def predict_beam(self, input_for_prediction, beam_width=3):
         """
         WIP implementation of beam search
         """
+        with torch.no_grad():
+            seq_len = 30  # input_for_prediction[1].shape[2]
+            device = next(self.parameters()).device
 
-        seq_len = 10  # input_for_prediction[1].shape[2]
-        device = next(self.parameters()).device
+            image, vectorized_seq = input_for_prediction
 
-        image, vectorized_seq = input_for_prediction
+            # first dimension 0 keeps end_token_idxindices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
+            track_best = torch.zeros((3, beam_width, seq_len)).to(device)
+            # Do first prediction, store #beam_width best
+            pred = self(*input_for_prediction)
+            first_predicted = torch.topk(pred[0][0], beam_width)
+            for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
+                track_best[0, i, 0] = index.item()
+                track_best[1, i, 0] = log_prob
+                track_best[2, i, 0] = -1
 
-        # first dimension 0 keeps end_token_idxindices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
-        track_best = torch.zeros((3, beam_width, seq_len)).to(device)
-        self.eval()
+            vocab_size = self.vocabulary_size
 
-        # Do first prediction, store #beam_width best
-        pred = self(*input_for_prediction)
-        first_predicted = torch.topk(pred[0][0], beam_width)
-        for i, (log_prob, index) in enumerate(zip(first_predicted.values, first_predicted.indices)):
-            track_best[0, i, 0] = index.item()
-            track_best[1, i, 0] = log_prob
-            track_best[2, i, 0] = -1
+            current_predictions = torch.zeros((beam_width * vocab_size))
+            new_seq = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
 
-        vocab_size = self.vocabulary_size
+            # Write start token
+            for i in range(3):
+                new_seq[i][0] = vectorized_seq[0][0][0]
 
-        current_predictions = torch.zeros((beam_width * vocab_size))
-        new_seq = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
+            # For every sequence index consider all previous beam_width possibilities
+            for idx in range(1, seq_len):
+                for k in range(beam_width):
+                    i = track_best[0, k, idx - 1]
+                    p = track_best[1, k, idx - 1]
+                    best_k = track_best[2, k, idx - 1].long()
 
-        # Write start token
-        for i in range(3):
-            new_seq[i][0] = vectorized_seq[0][0][0]
+                    # Build new sequence with previous index
+                    new_seq[k][idx] = i
 
-        # For every sequence index consider all previous beam_width possibilities
-        for idx in range(1, seq_len):
-            for k in range(beam_width):
-                i = track_best[0, k, idx - 1]
-                p = track_best[1, k, idx - 1]
-                best_k = track_best[2, k, idx - 1].long()
+                    for o in reversed(range(1, idx)):
+                        new_seq[k][o] = track_best[0, best_k, o - 1]
+                        best_k = track_best[2, best_k, o - 1].long()
 
-                # Build new sequence with previous index
-                new_seq[k][idx] = i
+                    # Predict new indices and rank beam_width best
+                    new_input = (image, new_seq[k].unsqueeze(0).unsqueeze(0))
+                    new_prediction = self(*new_input)[0][idx] + p
 
-                for o in reversed(range(1, idx)):
-                    new_seq[k][o] = track_best[0, best_k, o - 1]
-                    best_k = track_best[2, best_k, o - 1].long()
+                    # Store prediction
+                    current_predictions[k * vocab_size:(k + 1) * vocab_size] = new_prediction[:]
 
-                # Predict new indices and rank beam_width best
-                new_input = (image, new_seq[k].unsqueeze(0).unsqueeze(0))
-                new_prediction = self(*new_input)[0][idx] + p
+                # Rank all predictions
+                new_predicted = torch.topk(current_predictions, beam_width)
 
-                # Store prediction
-                current_predictions[k * vocab_size:(k + 1) * vocab_size] = new_prediction[:]
+                # Find topk across all beam_width * vocab_size predictions
+                for i, (log_prob, index) in enumerate(zip(new_predicted.values, new_predicted.indices)):
+                    # Find the correct word
+                    k_idx = index // vocab_size
+                    word_idx = index % vocab_size
 
-            # Rank all predictions
-            new_predicted = torch.topk(current_predictions, beam_width)
+                    track_best[0, i, idx] = word_idx
+                    track_best[1, i, idx] = log_prob
+                    track_best[2, i, idx] = k_idx
 
-            # Find topk across all beam_width * vocab_size predictions
-            for i, (log_prob, index) in enumerate(zip(new_predicted.values, new_predicted.indices)):
-                # Find the correct word
-                k_idx = index // vocab_size
-                word_idx = index % vocab_size
+            # Find best result
+            last_col = track_best[1, :, seq_len - 1]
+            best_k = torch.argmax(last_col, dim=0)
 
-                track_best[0, i, idx] = word_idx
-                track_best[1, i, idx] = log_prob
-                track_best[2, i, idx] = k_idx
-
-        # Find best result
-        last_col = track_best[1, :, seq_len - 1]
-        best_k = torch.argmax(last_col, dim=0)
-
-        return new_seq[best_k].unsqueeze(0).unsqueeze(0)
+            return new_seq[best_k].unsqueeze(0).unsqueeze(0)
 
     def predict_greedy_sample(self, input_for_prediction, end_token_idx=3):
         """
@@ -299,17 +297,18 @@ class RNNModel(nn.Module):
         :param found_sequences:
         :return:
         """
-        seq_len = input_for_prediction[1].shape[2]
-        image, vectorized_seq = input_for_prediction
-        self.eval()
-        prediction_number = 1
-        for idx in range(seq_len - 1):
-            pred = self(image, vectorized_seq)
-            sampled_index = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
-            vectorized_seq[0][0][idx + 1] = sampled_index
-            if sampled_index == end_token_idx:
-                break
-        return vectorized_seq
+        with torch.no_grad():
+            seq_len = input_for_prediction[1].shape[2]
+            image, vectorized_seq = input_for_prediction
+            self.eval()
+            prediction_number = 1
+            for idx in range(seq_len - 1):
+                pred = self(image, vectorized_seq)
+                sampled_index = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
+                vectorized_seq[0][0][idx + 1] = sampled_index
+                if sampled_index == end_token_idx:
+                    break
+            return vectorized_seq
 
 
 class Vocabulary(object):
