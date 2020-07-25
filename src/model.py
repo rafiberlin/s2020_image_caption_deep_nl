@@ -204,6 +204,7 @@ class RNNModel(nn.Module):
         :return:
         """
         with torch.no_grad():
+            self.eval()
             seq_len = input_for_prediction[1].shape[2]
             image, vectorized_seq = input_for_prediction
             prediction_number = 1
@@ -223,9 +224,9 @@ class RNNModel(nn.Module):
         WIP implementation of beam search
         """
         with torch.no_grad():
+            self.eval()
             seq_len = 30  # input_for_prediction[1].shape[2]
             device = next(self.parameters()).device
-
             image, vectorized_seq = input_for_prediction
 
             # first dimension 0 keeps end_token_idxindices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
@@ -298,9 +299,9 @@ class RNNModel(nn.Module):
         :return:
         """
         with torch.no_grad():
+            self.eval()
             seq_len = input_for_prediction[1].shape[2]
             image, vectorized_seq = input_for_prediction
-            self.eval()
             prediction_number = 1
             for idx in range(seq_len - 1):
                 pred = self(image, vectorized_seq)
