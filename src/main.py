@@ -243,6 +243,7 @@ def main():
     parser.add_argument("-p", "--params", help="hparams config file")
     parser.add_argument("--train", action="store_true", help="force training")
     parser.add_argument("--download", action="store_true", help="download dataset")
+    parser.add_argument("--prep", action="store_true", help="preprocess dataset")
     args = parser.parse_args()
 
     if args.params:
@@ -256,6 +257,9 @@ def main():
         prep.download_unpack_zip(hparams["glove_url"], hparams["root"])
         with open(GLOVE_SCRIPT) as script_file:
             exec(script_file.read())
+
+    if args.prep:
+        prep.preprocess_annotations(hparams)
 
     # Make sure the Cuda Start is fresh...
     torch.cuda.empty_cache()
@@ -274,6 +278,7 @@ def main():
     prep.set_seed_everywhere(SEED)
     cleaned_captions = prep.get_captions(hparams, trainset_name)
     cutoff_for_unknown_words = hparams["cutoff"]
+
     c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions, cutoff_for_unknown_words)
     padding_idx = None
 

@@ -17,6 +17,7 @@ from zipfile import ZipFile
 from argparse import Namespace
 import model
 import torch.utils.data
+from pycocotools.coco import COCO
 
 if not torch.cuda.is_available():
     DEVICE="cpu"
@@ -82,7 +83,7 @@ class ImageSizeStats(object):
     def get_RGB_mean(self, image_size=(640, 640), batch_size=300):
 
         mean = torch.zeros(3, device=DEVICE)
-        for i_batch, sample_batched in enumerate(torch.utils.data.DataLoader(self.dataset, batch_size)):
+        for i_batch, sample_batched in enumerate(tqdm(torch.utils.data.DataLoader(self.dataset, batch_size), total=len(self.dataset))):
             imgs = sample_batched[0].to(DEVICE)
             mean += imgs.sum((2, 3)).sum(0)
         mean = mean / (len(self.dataset) * image_size[0] * image_size[1])
@@ -281,22 +282,16 @@ def get_captions(hparams, name):
     :return:
     """
 
-    transform_pipeline, shuffle = model.CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, name)
-    train_file = hparams[name]
-    image_dir = os.path.join(hparams['root'], train_file)
-    caption_file_path = get_correct_annotation_file(hparams, name)
-
-    coco_train_set = dset.CocoDetection(root=image_dir,
-                                        annFile=caption_file_path,
-                                        transform=transform_pipeline
-                                        )
-    loader = torch.utils.data.DataLoader(coco_train_set, batch_size=hparams["batch_size"])
     captions_number = hparams["caption_number"]
-    list = []
-    for batch in tqdm(enumerate(loader)):
-        captions = batch[1][1][:captions_number]
-        list.extend([c for idx, caption_list in enumerate(captions) for c in caption_list["caption"]])
-    return list
+    caption_file_path = get_correct_annotation_file(hparams, name)
+    coco_caps = COCO(caption_file_path)
+    img_ids = coco_caps.getImgIds()
+    result = []
+    for img in img_ids:
+        ann_ids = coco_caps.getAnnIds(img)
+        anns = coco_caps.loadAnns(ann_ids)
+        result.append(anns[captions_number]["caption"])
+    return result
 
 def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punctuation=True):
     """
@@ -311,11 +306,14 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
     punct = ""
     if not remove_punctuation:
         punct = "punct_"
+    
     file_path = get_cleaned_captions_path(hparams, punct + hparams[name])
+
     if not Path(file_path).is_file():
         file_path = get_captions_path(hparams, hparams[name])
     save_file_path = get_correct_annotation_file(hparams, name, remove_punctuation)
     # Fallback on original files
+
     if not Path(file_path).is_file() and not save_file_path:
         raise Exception("Neither cleaned version of annotation files under nor original avalaible under : ",
                         hparams["root"])
@@ -348,25 +346,31 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
             return cleaned_captions
 
 
-def clean_caption_annotations(annotation_dir, annotation_list, remove_punctuation=True):
+def clean_caption_annotations(hparams, annotation_list, remove_punctuation=True):
     for annotation in annotation_list:
-        create_list_of_captions_and_clean(annotation_dir, annotation, None, remove_punctuation)
+        create_list_of_captions_and_clean(hparams, annotation, None, remove_punctuation)
 
 
-def calculate_rgb_stats():
-    clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
-    coco_train_set = dset.CocoDetection(root="../data/train2017",
-                                        annFile="../data/annotations/cleaned_captions_train2017.json",
-                                        transform=transforms.Compose([CenteringPad(),
-                                                                      transforms.Resize((640, 640)),
-                                                                      transforms.ToTensor()])
-                                        )
-    iss = ImageSizeStats(coco_train_set)
-    t = torch.ones(3)
+def preprocess_annotations(hparams):
+    # Clean captions
+    ann_path = os.path.join(hparams["root"], "annotations")
+    clean_caption_annotations(hparams, ["train", "val"])
 
-    rgb_means = iss.get_RGB_mean_sd()
-    create_json_config(rgb_means, "rgb_stats.json")
+    # Acquire training data
+    train_nm = hparams["train"]
+    train_root = os.path.join(hparams["root"], train_nm)
+    train_cleaned_captions = os.path.join(ann_path, f"cleaned_captions_{train_nm}.json")
 
+    #print("Calculating train rgb stats...")
+    #coco_train_set = dset.CocoDetection(root=train_root,
+    #                                    annFile=train_cleaned_captions,
+    #                                    transform=transforms.Compose([CenteringPad(),
+    #                                                                  transforms.Resize((640, 640)),
+    #                                                                  transforms.ToTensor()]))
+    #iss = ImageSizeStats(coco_train_set)
+    #t = torch.ones(3)
+    #rgb_means = iss.get_RGB_mean_sd()
+    #create_json_config(rgb_means, f"rgb_stats_{train_nm}.json")
 
 def get_captions_path(hparams, dataset):
     return f"{hparams['root']}/annotations/captions_{dataset}.json"
