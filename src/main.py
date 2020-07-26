@@ -15,7 +15,7 @@ from pathlib import Path
 import json
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
-GLOVE_SCRIPT = "./util/glove_conv.py"
+GLOVE_SCRIPT = "./utils/glove_conv.py"
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1
@@ -259,7 +259,7 @@ def main():
             exec(script_file.read())
 
     if args.prep:
-        prep.preprocess_annotations(hparams)
+        prep.clean_caption_annotations(hparams, ["train", "val"])
 
     # Make sure the Cuda Start is fresh...
     torch.cuda.empty_cache()
