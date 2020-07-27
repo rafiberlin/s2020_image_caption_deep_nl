@@ -93,8 +93,9 @@ def compute_loss_on_validation(val_loader, device, network):
                 val_batch,
                 device)
             del val_batch
-            val_out_captions = val_out_captions.reshape(-1)
-            val_log_prediction = network(val_images, val_in_captions).reshape(val_out_captions.shape[0], -1)
+            val_log_prediction = network(val_images, val_in_captions).permute(0, 2, 1)
+            batch_times_caption = val_log_prediction.shape[0]
+            val_out_captions = val_out_captions.reshape(batch_times_caption, -1)
             val_total_loss += val_loss_function(val_log_prediction, val_out_captions)
             del val_images
             del val_in_captions
