@@ -3,6 +3,7 @@ from tqdm import tqdm
 import preprocessing as prep
 import pandas as pd
 
+
 class BleuScorer:
 
     @classmethod
@@ -22,7 +23,7 @@ class BleuScorer:
 
         for idx, current_batch in enumerate(tqdm(train_loader)):
             imgs, \
-            annotations, _ = current_batch
+                annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
                 # deterministic...
@@ -76,12 +77,15 @@ class BleuScorer:
         if hparams["sampling_method"] == "beam_search":
             beam_width = hparams["beam_width"]
             bw = f"_bw{hparams['beam_width']}"
-            sampler = lambda x: network_model.predict_beam(x, beam_width)
+            def sampler(x): return network_model.predict_beam(x, beam_width)
         elif hparams["sampling_method"] == "sample_search":
             bw = "_sc"
-            sampler = lambda x: network_model.predict_greedy_sample(x, end_token_idx)
+
+            def sampler(x): return network_model.predict_greedy_sample(
+                x, end_token_idx)
         else:
-            sampler = lambda x: network_model.predict_greedy(x, end_token_idx)
+            def sampler(x): return network_model.predict_greedy(
+                x, end_token_idx)
 
         for idx, current_batch in enumerate(train_loader):
             imgs, annotations, _ = current_batch
@@ -89,7 +93,8 @@ class BleuScorer:
                 _id = image_id.item()
                 starting_token = v.create_starting_sequence().to(device)
                 img = imgs[sample_idx].unsqueeze(dim=0).to(device)
-                caption = starting_token.unsqueeze(dim=0).unsqueeze(dim=0).to(device)
+                caption = starting_token.unsqueeze(
+                    dim=0).unsqueeze(dim=0).to(device)
                 input_for_prediction = (img, caption)
                 predicted_label = sampler(input_for_prediction)
                 current_hypothesis = v.decode(predicted_label[0][0])
@@ -122,7 +127,8 @@ class BleuScorer:
                                     timestamp + f"{prefix}_bleu_prediction{bw}{gold_with_original}.json")
             filepath_2 = os.path.join(hparams["model_storage"],
                                       timestamp + f"{prefix}_bleu_prediction_scores{bw}{gold_with_original}.json")
-            prep.create_json_config({k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
+            prep.create_json_config(
+                {k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
             prep.create_json_config([score], filepath_2)
 
         """
@@ -146,7 +152,6 @@ class BleuScorer:
 
     @classmethod
     def calc_scores(cls, ref, hypo):
-
         """
         Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
         ref, dictionary of reference sentences (id, sentence)
@@ -181,6 +186,8 @@ class BleuScorer:
                                                             prefix=prefix)
         bleu_score_human_average_np = bleu_score_human_average.to_numpy().reshape(-1)
         print("Unweighted Gold Bleu Scores:\n", bleu_score_human_average)
-        print("Weighted Gold Bleu Scores:\n", bleu_score_human_average_np.mean())
-        print("Geometric Gold Bleu Scores:\n", gmean(bleu_score_human_average_np))
+        print("Weighted Gold Bleu Scores:\n",
+              bleu_score_human_average_np.mean())
+        print("Geometric Gold Bleu Scores:\n",
+              gmean(bleu_score_human_average_np))
         print("##########################################################")

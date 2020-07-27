@@ -8,6 +8,7 @@ import gensim
 import numpy as np
 import preprocessing as prep
 
+
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
@@ -30,8 +31,10 @@ class CocoDatasetWrapper(Dataset):
             shuffle = hparams["shuffle"]
             if hparams["use_pixel_normalization"]:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                                         transforms.Resize((img_size, img_size)),
-                                                         transforms.RandomCrop(cropsize),
+                                                         transforms.Resize(
+                                                             (img_size, img_size)),
+                                                         transforms.RandomCrop(
+                                                             cropsize),
                                                          transforms.RandomHorizontalFlip(),
                                                          transforms.ToTensor(),
                                                          transforms.Normalize((0.485, 0.456, 0.406),
@@ -40,16 +43,20 @@ class CocoDatasetWrapper(Dataset):
                                                          ])
             else:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                                         transforms.Resize((img_size, img_size)),
-                                                         transforms.RandomCrop(cropsize),
+                                                         transforms.Resize(
+                                                             (img_size, img_size)),
+                                                         transforms.RandomCrop(
+                                                             cropsize),
                                                          transforms.RandomHorizontalFlip(),
                                                          transforms.ToTensor()])
         else:
             shuffle = False
             if hparams["use_pixel_normalization"]:
                 transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                                         transforms.Resize((img_size, img_size)),
-                                                         transforms.CenterCrop(cropsize),
+                                                         transforms.Resize(
+                                                             (img_size, img_size)),
+                                                         transforms.CenterCrop(
+                                                             cropsize),
                                                          transforms.ToTensor(),
                                                          transforms.Normalize((0.485, 0.456, 0.406),
                                                                               # recommended resnet config
@@ -79,7 +86,8 @@ class CocoDatasetWrapper(Dataset):
             image_dir = os.path.join(hparams['root'], train_file)
         else:
             image_dir = os.path.join(hparams['root'], image_dir)
-        caption_file_path = prep.get_correct_annotation_file(hparams, dataset_name)
+        caption_file_path = prep.get_correct_annotation_file(
+            hparams, dataset_name)
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
 
@@ -89,7 +97,8 @@ class CocoDatasetWrapper(Dataset):
         #              "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
         # rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
         # rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
-        transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(hparams, dataset_name)
+        transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(
+            hparams, dataset_name)
 
         coco_train_set = dset.CocoDetection(root=image_dir,
                                             annFile=caption_file_path,
@@ -97,7 +106,8 @@ class CocoDatasetWrapper(Dataset):
                                             )
 
         caption_number = hparams["caption_number"]
-        coco_dataset_wrapper = CocoDatasetWrapper(coco_train_set, c_vectorizer, caption_number)
+        coco_dataset_wrapper = CocoDatasetWrapper(
+            coco_train_set, c_vectorizer, caption_number)
         batch_size = hparams["batch_size"]
 
         train_loader = torch.utils.data.DataLoader(coco_dataset_wrapper, batch_size=batch_size, pin_memory=True,
@@ -123,16 +133,20 @@ class CocoDatasetWrapper(Dataset):
         num_captions = len(captions)
         # self.vectorizer.max_sequence_length - 1 because in label and out labels are shifted by 1 to match
         # for example, if the last real word in a caption is cat, the expected output caption is <end>...
-        vectorized_captions_in = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1), dtype=torch.long)
-        vectorized_captions_out = torch.zeros((num_captions, self.vectorizer.max_sequence_length - 1), dtype=torch.long)
+        vectorized_captions_in = torch.zeros(
+            (num_captions, self.vectorizer.max_sequence_length - 1), dtype=torch.long)
+        vectorized_captions_out = torch.zeros(
+            (num_captions, self.vectorizer.max_sequence_length - 1), dtype=torch.long)
         for i, caption_reviewer in enumerate(captions):
             c = self.vectorizer.vectorize(captions[i]["caption"])
-            vectorized_captions_in[i], vectorized_captions_out[i] = tuple(map(torch.from_numpy, c))
+            vectorized_captions_in[i], vectorized_captions_out[i] = tuple(
+                map(torch.from_numpy, c))
 
         # only use 5 or less captions to be able to use faster vectorized operations
         # avoid exceptions in the collate function in the fetch part of the dataloader
         return image, captions[:self.caption_number], (
             vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
+
 
 def generate_batches(dataset, batch_size, shuffle=True,
                      drop_last=True, device="cpu"):
@@ -155,9 +169,11 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
     if hparams["use_glove"]:
         print("Loading glove vectors...")
         glove_path = os.path.join(hparams['root'], hparams['glove_embedding'])
-        glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_path, binary=True)
+        glove_model = gensim.models.KeyedVectors.load_word2vec_format(
+            glove_path, binary=True)
         glove_embedding = np.zeros((vocabulary_size, glove_model.vector_size))
-        token2idx = {word: glove_model.vocab[word].index for word in glove_model.vocab.keys()}
+        token2idx = {
+            word: glove_model.vocab[word].index for word in glove_model.vocab.keys()}
         for word in c_vectorizer.get_vocab()._token_to_idx.keys():
             i = c_vectorizer.get_vocab().lookup_token(word)
             if word in token2idx:
@@ -172,13 +188,15 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
         if hparams["embedding_dim"] < embed_size:
             embed_size = hparams["embedding_dim"]
 
-        embedding = nn.Embedding.from_pretrained(torch.FloatTensor(glove_embedding[:, :embed_size]))
+        embedding = nn.Embedding.from_pretrained(
+            torch.FloatTensor(glove_embedding[:, :embed_size]))
         embedding.weight.requires_grad = hparams["improve_embedding"]
         print("GloVe embedding size:", glove_model.vector_size)
     else:
         embedding = nn.Embedding(num_embeddings=vocabulary_size,
                                  embedding_dim=hparams["embedding_dim"], padding_idx=padding_idx)
     return embedding
+
 
 def create_model_name(hparams):
     """

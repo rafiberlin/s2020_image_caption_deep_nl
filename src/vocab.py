@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from collections import Counter
 
+
 class Vocabulary:
     """Class to process text and extract vocabulary for mapping"""
 
@@ -153,8 +154,10 @@ class CaptionVectorizer:
         # shorter than the max length caption in the data
         vector_length = self.max_sequence_length - 1
 
-        x_vector = np.ones(vector_length, dtype=np.int64) * self.caption_vocab.mask_index
-        y_vector = np.ones(vector_length, dtype=np.int64) * self.caption_vocab.mask_index
+        x_vector = np.ones(vector_length, dtype=np.int64) * \
+            self.caption_vocab.mask_index
+        y_vector = np.ones(vector_length, dtype=np.int64) * \
+            self.caption_vocab.mask_index
         x_vector[:len(indices) - 1] = indices[:len(indices) - 1]
         y_vector[: len(indices) - 1] = indices[1:]
         return x_vector, y_vector
@@ -164,7 +167,8 @@ class CaptionVectorizer:
         Creates pytorch array with a starting sequence token
         :return:
         """
-        starting_token = torch.ones(self.max_sequence_length - 1, dtype=torch.long) * self.caption_vocab.mask_index
+        starting_token = torch.ones(
+            self.max_sequence_length - 1, dtype=torch.long) * self.caption_vocab.mask_index
         starting_token[0] = self.caption_vocab.begin_seq_index
         return starting_token
 

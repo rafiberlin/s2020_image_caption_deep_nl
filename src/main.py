@@ -38,9 +38,12 @@ def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
     # Set "break_training_loop_percentage" to 100 in hparams.json to train on everything...
     if hparams["debug"]:
         break_training_loop_percentage = hparams["break_training_loop_percentage"]
-        break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
-        break_val_loop_idx = max(int(len(val_loader) * break_training_loop_percentage / 100) - 1, 0)
-        break_test_loop_idx = max(int(len(test_loader) * break_training_loop_percentage / 100) - 1, 0)
+        break_training_loop_idx = max(
+            int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
+        break_val_loop_idx = max(
+            int(len(val_loader) * break_training_loop_percentage / 100) - 1, 0)
+        break_test_loop_idx = max(
+            int(len(test_loader) * break_training_loop_percentage / 100) - 1, 0)
     else:
         break_training_loop_idx = len(train_loader)
         break_val_loop_idx = len(val_loader)
@@ -59,7 +62,7 @@ def init_model(hparams, network, force_training=False):
     :return:
     """
 
-    ## Generate output folder if non-existent
+    # Generate output folder if non-existent
     model_dir = hparams["model_storage"]
     model_name = util.create_model_name(hparams)
     if not os.path.isdir(model_dir):
@@ -96,8 +99,10 @@ def compute_loss_on_validation(val_loader, device, network):
                 device)
             del val_batch
             val_out_captions = val_out_captions.reshape(-1)
-            val_log_prediction = network(val_images, val_in_captions).reshape(val_out_captions.shape[0], -1)
-            val_total_loss += val_loss_function(val_log_prediction, val_out_captions)
+            val_log_prediction = network(val_images, val_in_captions).reshape(
+                val_out_captions.shape[0], -1)
+            val_total_loss += val_loss_function(
+                val_log_prediction, val_out_captions)
             del val_images
             del val_in_captions
             del val_out_captions
@@ -124,7 +129,8 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         optimizer = optim.SGD(params=network.parameters(), momentum=hparams["sgd_momentum"], lr=hparams['lr'],
                               nesterov=True, weight_decay=hparams['weight_decay'])
     else:
-        optimizer = optim.Adam(params=network.parameters(), lr=hparams['lr'], weight_decay=hparams['weight_decay'])
+        optimizer = optim.Adam(params=network.parameters(
+        ), lr=hparams['lr'], weight_decay=hparams['weight_decay'])
 
     start = timer()
     tb = None
@@ -133,7 +139,8 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         batch = next(iter(train_loader))
         grid = make_grid(batch[0])
         tb.add_image("images", grid)
-        images, in_captions, out_captions = util.CocoDatasetWrapper.transform_batch_for_training(batch, device)
+        images, in_captions, out_captions = util.CocoDatasetWrapper.transform_batch_for_training(
+            batch, device)
         tb.add_graph(network, (images, in_captions))
 
     # --- training loop ---
@@ -151,7 +158,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
             images, in_captions, out_captions = util.CocoDatasetWrapper.transform_batch_for_training(current_batch,
-                                                                                                      device)
+                                                                                                     device)
             del current_batch
             optimizer.zero_grad()
             # The input for the NLL Loss is batch times number of classes (vocabulary in our case)
@@ -165,7 +172,8 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
 
             # Should be helpful if we get NaN loss
             if hparams["clip_grad"]:
-                torch.nn.utils.clip_grad_norm_(network.parameters(), hparams["clip_grad"])
+                torch.nn.utils.clip_grad_norm_(
+                    network.parameters(), hparams["clip_grad"])
             # Use optimizer to take gradient step
             optimizer.step()
             # hopefully helping for garbage collection an freeing up ram more quickly for GPU
@@ -183,13 +191,16 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             # Can be used to make graphs...
             total_loss_tracking.append((epoch + 1, scalar_total_loss))
             if hparams["compute_val_loss"]:
-                val_loss = compute_loss_on_validation(val_loader, device, network)
-                print("Total Validation Loss:", val_loss, "Epoch:", epoch + 1, "\n")
+                val_loss = compute_loss_on_validation(
+                    val_loader, device, network)
+                print("Total Validation Loss:", val_loss,
+                      "Epoch:", epoch + 1, "\n")
                 # Can be used to make graphs..
                 total_val_loss_tracking.append((epoch + 1, val_loss))
                 if hparams["keep_best_val_loss"]:
                     if val_loss >= previous_val_loss:
-                        print("Total Validation Loss got worse, reload last temporary model, break learning loop.")
+                        print(
+                            "Total Validation Loss got worse, reload last temporary model, break learning loop.")
                         break_early_val_loss = True
                         break
                     else:
@@ -197,14 +208,16 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
                 previous_val_loss = val_loss
             if hparams["keep_best_total_loss"]:
                 if scalar_total_loss > previous_total_loss:
-                    print("Total Loss got worse, reload last temporary model, break learning loop.")
+                    print(
+                        "Total Loss got worse, reload last temporary model, break learning loop.")
                     break_early = True
                     break
                 else:
                     torch.save(network.state_dict(), temp_model)
                     previous_total_loss = scalar_total_loss
             if hparams["save_pending_model"]:
-                temp_model = os.path.join(model_dir, f"epoch_{str(epoch + 1)}_{model_name}")
+                temp_model = os.path.join(
+                    model_dir, f"epoch_{str(epoch + 1)}_{model_name}")
                 torch.save(network.state_dict(), temp_model)
             if hparams["use_tensorboard"]:
                 tb.add_scalar("Total Loss", scalar_total_loss, epoch + 1)
@@ -244,8 +257,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--params", help="hparams config file")
     parser.add_argument("--train", action="store_true", help="force training")
-    parser.add_argument("--download", action="store_true", help="download dataset")
-    parser.add_argument("--prep", action="store_true", help="preprocess dataset")
+    parser.add_argument("--download", action="store_true",
+                        help="download dataset")
+    parser.add_argument("--prep", action="store_true",
+                        help="preprocess dataset")
     args = parser.parse_args()
 
     if args.params:
@@ -275,23 +290,28 @@ def main():
         print("Warning, only CPU processing available!")
         device = "cpu"
     else:
-        print("CUDA GPU is available", "Number of machines:", torch.cuda.device_count())
+        print("CUDA GPU is available", "Number of machines:",
+              torch.cuda.device_count())
 
     prep.set_seed_everywhere(SEED)
     cleaned_captions = prep.get_captions(hparams, trainset_name)
     cutoff_for_unknown_words = hparams["cutoff"]
 
-    c_vectorizer = model.CaptionVectorizer.from_dataframe(cleaned_captions, cutoff_for_unknown_words)
+    c_vectorizer = model.CaptionVectorizer.from_dataframe(
+        cleaned_captions, cutoff_for_unknown_words)
     padding_idx = None
 
     if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
     embedding = util.create_embedding(hparams, c_vectorizer, padding_idx)
-    train_loader = util.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
+    train_loader = util.CocoDatasetWrapper.create_dataloader(
+        hparams, c_vectorizer, trainset_name)
     # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    test_loader = util.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "train2017")
-    val_loader = util.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
+    test_loader = util.CocoDatasetWrapper.create_dataloader(
+        hparams, c_vectorizer, testset_name, "train2017")
+    val_loader = util.CocoDatasetWrapper.create_dataloader(
+        hparams, c_vectorizer, valset_name)
 
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"],
@@ -304,11 +324,15 @@ def main():
 
     if start_training:
         loss_function = nn.NLLLoss().to(device)
-        train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader)
+        train(hparams, loss_function, network, train_loader,
+              device, break_training_loop_idx, val_loader)
 
-    bleu.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
-    bleu.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, break_val_loop_idx, "val")
+    bleu.BleuScorer.perform_whole_evaluation(
+        hparams, train_loader, network, break_training_loop_idx, "train")
+    bleu.BleuScorer.perform_whole_evaluation(
+        hparams, val_loader, network, break_val_loop_idx, "val")
     #model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
+
 
 if __name__ == '__main__':
     main()

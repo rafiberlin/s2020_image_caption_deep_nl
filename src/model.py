@@ -7,6 +7,7 @@ import os
 from tqdm import tqdm
 from vocab import *
 
+
 class ImageToHiddenState(nn.Module):
     """
     We try to transform each image to an hidden state with 120 values...
@@ -16,8 +17,10 @@ class ImageToHiddenState(nn.Module):
     def __init__(self, output_dim=120):
         super(ImageToHiddenState, self).__init__()
 
-        self.conv1 = nn.Conv2d(in_channels=3, out_channels=6, kernel_size=5, stride=3)
-        self.conv2 = nn.Conv2d(in_channels=6, out_channels=12, kernel_size=5, stride=3)
+        self.conv1 = nn.Conv2d(
+            in_channels=3, out_channels=6, kernel_size=5, stride=3)
+        self.conv2 = nn.Conv2d(
+            in_channels=6, out_channels=12, kernel_size=5, stride=3)
         self.out = nn.Linear(in_features=12 * 7 * 7, out_features=output_dim)
 
     def forward(self, t):
@@ -51,7 +54,8 @@ class VGG16Module(nn.Module):
         self.linear = nn.Linear(4096, output_dim)
         self.improve_pretrained = improve_pretrained
         # Remove last four layers of vgg16
-        self.vgg16.classifier = nn.Sequential(*list(self.vgg16.classifier.children())[:-4])
+        self.vgg16.classifier = nn.Sequential(
+            *list(self.vgg16.classifier.children())[:-4])
 
     def forward(self, img):
         if not self.improve_pretrained:
@@ -143,10 +147,12 @@ class RNNModel(nn.Module):
             self.image_cnn = VGG16Module(self.embedding_dim, self.improve_cnn)
         elif cnn_model == "mobilenet":
             print("Using mobilenet...")
-            self.image_cnn = MobileNetModule(self.embedding_dim, self.improve_cnn)
+            self.image_cnn = MobileNetModule(
+                self.embedding_dim, self.improve_cnn)
         elif cnn_model == "resnet50":
             print("Using resnet50...")
-            self.image_cnn = Resnet50Module(self.embedding_dim, self.improve_cnn)
+            self.image_cnn = Resnet50Module(
+                self.embedding_dim, self.improve_cnn)
         else:
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(self.embedding_dim)
@@ -165,13 +171,15 @@ class RNNModel(nn.Module):
         image_hidden = self.image_cnn(imgs)
 
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
-        image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(dim=1).repeat(1, number_captions, 1, 1)
+        image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(
+            dim=1).repeat(1, number_captions, 1, 1)
         embeds = self.embeddings(labels)
 
         # adds the image for each batch sample and caption as the first input of the sequence.
         # its output will be discarded at the return statement, we don't use it in the loss function
         embeds = torch.cat((image_hidden, embeds), dim=2)
-        embeds = embeds.reshape((batch_size * number_captions, -1, self.embedding_dim))
+        embeds = embeds.reshape(
+            (batch_size * number_captions, -1, self.embedding_dim))
         lstm_out, _ = self.rnn(embeds)
 
         classes = self.linear(lstm_out)
@@ -216,8 +224,11 @@ class RNNModel(nn.Module):
             device = next(self.parameters()).device
             image, vectorized_seq = input_for_prediction
 
-            # first dimension 0 keeps end_token_idxindices, 1 keeps probability, 2 word corresponds to k-index of previous timestep
+            # 0 keeps indices
+            # 1 keeps probability
+            # 2 word corresponds to k-index of previous timestep
             track_best = torch.zeros((3, beam_width, seq_len)).to(device)
+
             # Do first prediction, store #beam_width best
             pred = self(*input_for_prediction)
             first_predicted = torch.topk(pred[0][0], beam_width)
@@ -229,7 +240,8 @@ class RNNModel(nn.Module):
             vocab_size = self.vocabulary_size
 
             current_predictions = torch.zeros((beam_width * vocab_size))
-            new_seq = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
+            new_seq = torch.zeros((beam_width, seq_len),
+                                  dtype=torch.long).to(device)
 
             # Write start token
             for i in range(3):
@@ -254,7 +266,8 @@ class RNNModel(nn.Module):
                     new_prediction = self(*new_input)[0][idx] + p
 
                     # Store prediction
-                    current_predictions[k * vocab_size:(k + 1) * vocab_size] = new_prediction[:]
+                    current_predictions[k *
+                                        vocab_size:(k + 1) * vocab_size] = new_prediction[:]
 
                 # Rank all predictions
                 new_predicted = torch.topk(current_predictions, beam_width)
@@ -292,9 +305,9 @@ class RNNModel(nn.Module):
             prediction_number = 1
             for idx in range(seq_len - 1):
                 pred = self(image, vectorized_seq)
-                sampled_index = torch.multinomial(torch.exp(pred[0][idx]), prediction_number)
+                sampled_index = torch.multinomial(
+                    torch.exp(pred[0][idx]), prediction_number)
                 vectorized_seq[0][0][idx + 1] = sampled_index
                 if sampled_index == end_token_idx:
                     break
             return vectorized_seq
-
