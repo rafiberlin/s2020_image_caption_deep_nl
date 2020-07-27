@@ -296,8 +296,10 @@ def get_captions(hparams, name):
 
     captions_number = hparams["caption_number"]
     caption_file_path = get_correct_annotation_file(hparams, name)
+
     coco_caps = COCO(caption_file_path)
     img_ids = coco_caps.getImgIds()
+
     result = []
     for img in img_ids:
         ann_ids = coco_caps.getAnnIds(img)
