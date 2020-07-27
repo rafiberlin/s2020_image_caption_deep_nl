@@ -23,6 +23,7 @@ if not torch.cuda.is_available():
     DEVICE="cpu"
 else:
     DEVICE="cuda:0"
+
 def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
         json.dump(params, json_file)
@@ -31,7 +32,6 @@ def create_json_config(params, file_path, indent=3):
 def read_json_config(file_path):
     with open(file_path, 'r') as f:
         return json.load(f)
-
 
 class ImageSizeStats(object):
     """

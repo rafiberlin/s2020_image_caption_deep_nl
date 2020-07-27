@@ -13,6 +13,8 @@ import argparse
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 import json
+import bleu
+import util
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
 GLOVE_SCRIPT = "./utils/glove_conv.py"
@@ -59,7 +61,7 @@ def init_model(hparams, network, force_training=False):
 
     ## Generate output folder if non-existent
     model_dir = hparams["model_storage"]
-    model_name = model.create_model_name(hparams)
+    model_name = util.create_model_name(hparams)
     if not os.path.isdir(model_dir):
         try:
             os.mkdir(model_dir)
@@ -89,7 +91,7 @@ def compute_loss_on_validation(val_loader, device, network):
     val_loss_function = nn.NLLLoss().to(device)
     with torch.no_grad():
         for val_idx, val_batch in enumerate(val_loader):
-            val_images, val_in_captions, val_out_captions = model.CocoDatasetWrapper.transform_batch_for_training(
+            val_images, val_in_captions, val_out_captions = util.CocoDatasetWrapper.transform_batch_for_training(
                 val_batch,
                 device)
             del val_batch
@@ -115,7 +117,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     """
 
     model_dir = hparams["model_storage"]
-    model_name = model.create_model_name(hparams)
+    model_name = util.create_model_name(hparams)
     model_path = os.path.join(model_dir, model_name)
 
     if hparams["sgd_momentum"]:
@@ -131,7 +133,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
         batch = next(iter(train_loader))
         grid = make_grid(batch[0])
         tb.add_image("images", grid)
-        images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(batch, device)
+        images, in_captions, out_captions = util.CocoDatasetWrapper.transform_batch_for_training(batch, device)
         tb.add_graph(network, (images, in_captions))
 
     # --- training loop ---
@@ -148,7 +150,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     for epoch in tqdm(range(hparams["num_epochs"])):
         total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
-            images, in_captions, out_captions = model.CocoDatasetWrapper.transform_batch_for_training(current_batch,
+            images, in_captions, out_captions = util.CocoDatasetWrapper.transform_batch_for_training(current_batch,
                                                                                                       device)
             del current_batch
             optimizer.zero_grad()
@@ -285,11 +287,11 @@ def main():
     if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
-    embedding = model.create_embedding(hparams, c_vectorizer, padding_idx)
-    train_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
+    embedding = util.create_embedding(hparams, c_vectorizer, padding_idx)
+    train_loader = util.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, trainset_name)
     # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    test_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "train2017")
-    val_loader = model.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
+    test_loader = util.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, testset_name, "train2017")
+    val_loader = util.CocoDatasetWrapper.create_dataloader(hparams, c_vectorizer, valset_name)
 
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"],
@@ -303,10 +305,10 @@ def main():
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader)
-    model.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
-    model.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, break_val_loop_idx, "val")
-    #model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
 
+    bleu.BleuScorer.perform_whole_evaluation(hparams, train_loader, network, break_training_loop_idx, "train")
+    bleu.BleuScorer.perform_whole_evaluation(hparams, val_loader, network, break_val_loop_idx, "val")
+    #model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
 
 if __name__ == '__main__':
     main()
