@@ -112,6 +112,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     :param train_loader:
     :param device:
     :param break_training_loop_idx:
+    :param val_loader:
     :return:
     """
 
