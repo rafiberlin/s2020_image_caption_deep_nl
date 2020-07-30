@@ -16,12 +16,16 @@ from urllib.request import urlopen
 from zipfile import ZipFile
 from argparse import Namespace
 import model
+import util
 import torch.utils.data
+from pycocotools.coco import COCO
 
 if not torch.cuda.is_available():
-    DEVICE="cpu"
+    DEVICE = "cpu"
 else:
-    DEVICE="cuda:0"
+    DEVICE = "cuda:0"
+
+
 def create_json_config(params, file_path, indent=3):
     with open(file_path, 'w') as json_file:
         json.dump(params, json_file)
@@ -82,11 +86,12 @@ class ImageSizeStats(object):
     def get_RGB_mean(self, image_size=(640, 640), batch_size=300):
 
         mean = torch.zeros(3, device=DEVICE)
-        for i_batch, sample_batched in enumerate(torch.utils.data.DataLoader(self.dataset, batch_size)):
+        for i_batch, sample_batched in enumerate(tqdm(torch.utils.data.DataLoader(self.dataset, batch_size), total=len(self.dataset))):
             imgs = sample_batched[0].to(DEVICE)
             mean += imgs.sum((2, 3)).sum(0)
         mean = mean / (len(self.dataset) * image_size[0] * image_size[1])
-        create_json_config({"mean": [mean[0].item(), mean[1].item(), mean[2].item()]}, "mean.json")
+        create_json_config(
+            {"mean": [mean[0].item(), mean[1].item(), mean[2].item()]}, "mean.json")
         return mean
 
     def get_RGB_sd(self, mean, image_size=(640, 640), batch_size=300):
@@ -98,7 +103,8 @@ class ImageSizeStats(object):
             s = ((imgs - mean.unsqueeze(dim=0).unsqueeze(dim=-1).unsqueeze(dim=-1)).pow(2))
             # Then just apply the formula for standard deviation
             sd += s.sum((2, 3)).sum(0)
-        sd = torch.sqrt(sd / ((len(self.dataset)) * image_size[0] * image_size[1]))
+        sd = torch.sqrt(sd / ((len(self.dataset)) *
+                              image_size[0] * image_size[1]))
         return sd
 
     def get_RGB_mean_sd(self, image_size=(640, 640), batch_size=100):
@@ -116,20 +122,22 @@ def print_img_infos_datasets():
 
     file_args = read_json_config(DATASET_FILE_PATHS_CONFIG)
 
-
     coco_train_set = dset.CocoDetection(root=file_args["train"]["img"],
                                         annFile=file_args["train"]["capt"],
-                                        transform=transforms.Compose([transforms.ToTensor()])
+                                        transform=transforms.Compose(
+                                            [transforms.ToTensor()])
                                         )
 
     coco_val_set = dset.CocoDetection(root=file_args["val"]["img"],
                                       annFile=file_args["val"]["capt"],
-                                      transform=transforms.Compose([transforms.ToTensor()])
+                                      transform=transforms.Compose(
+                                          [transforms.ToTensor()])
                                       )
 
     coco_test_set = dset.CocoDetection(root=file_args["test"]["img"],
                                        annFile=file_args["test"]["capt"],
-                                       transform=transforms.Compose([transforms.ToTensor()])
+                                       transform=transforms.Compose(
+                                           [transforms.ToTensor()])
                                        )
     print("train")
     print_img_infos(coco_train_set)
@@ -158,6 +166,7 @@ def preprocess_text(text, remove_punctuation=True):
         text = [word for word in text if word.isalpha()]
     text = " ".join(text)
     return text
+
 
 class CenteringPad(object):
     """
@@ -222,16 +231,19 @@ def get_current_images_id(hparams, dataset_name):
     caption_file_path = get_cleaned_captions_path(hparams, train_file)
     img_size = hparams["image_size"]
     transform_pipeline = transforms.Compose([CenteringPad(),
-                                             transforms.Resize((img_size, img_size)),
+                                             transforms.Resize(
+                                                 (img_size, img_size)),
                                              transforms.ToTensor()])
 
     coco_train_set = dset.CocoDetection(root=image_dir,
                                         annFile=caption_file_path,
                                         transform=transform_pipeline
                                         )
-    train_loader = torch.utils.data.DataLoader(coco_train_set, batch_size=hparams["batch_size"])
+    train_loader = torch.utils.data.DataLoader(
+        coco_train_set, batch_size=hparams["batch_size"])
     break_training_loop_percentage = hparams["break_training_loop_percentage"]
-    break_training_loop_idx = max(int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
+    break_training_loop_idx = max(
+        int(len(train_loader) * break_training_loop_percentage / 100) - 1, 0)
 
     img_list = []
     for idx, sample in enumerate(tqdm(train_loader)):
@@ -258,11 +270,13 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
         punct = "punct_"
     use_reduced_set = False
     if percentage < 100:
-        save_file_path = os.path.join(caption_dir, f"{percentage}_cleaned_captions_{punct + hparams[name]}.json")
+        save_file_path = os.path.join(
+            caption_dir, f"{percentage}_cleaned_captions_{punct + hparams[name]}.json")
         caption_file = Path(save_file_path)
         use_reduced_set = caption_file.is_file()
     if not use_reduced_set:
-        save_file_path = os.path.join(caption_dir, f"cleaned_captions_{punct + hparams[name]}.json")
+        save_file_path = os.path.join(
+            caption_dir, f"cleaned_captions_{punct + hparams[name]}.json")
         caption_file = Path(save_file_path)
         file_available = caption_file.is_file()
     else:
@@ -273,6 +287,28 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
     return None
 
 
+# def get_captions(hparams, name):
+#     """
+#     Only extracts the needed captions set in caption_number. Might reduce memory footprint for embeddings
+#     :param hparams:
+#     :param name:
+#     :return:
+#     """
+#
+#     captions_number = hparams["caption_number"]
+#     caption_file_path = get_correct_annotation_file(hparams, name)
+#
+#     coco_caps = COCO(caption_file_path)
+#     img_ids = coco_caps.getImgIds()
+#
+#     result = []
+#     for img in img_ids:
+#         #only load captions used during training
+#         ann_ids = coco_caps.getAnnIds(img)[:captions_number]
+#         anns = coco_caps.loadAnns(ann_ids)
+#         result.extend([a["caption"] for a in anns])
+#     return result
+
 def get_captions(hparams, name):
     """
     Only extracts the needed captions set in caption_number. Might reduce memory footprint for embeddings
@@ -281,7 +317,7 @@ def get_captions(hparams, name):
     :return:
     """
 
-    transform_pipeline, shuffle = model.CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, name)
+    transform_pipeline, shuffle = util.CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, name)
     train_file = hparams[name]
     image_dir = os.path.join(hparams['root'], train_file)
     caption_file_path = get_correct_annotation_file(hparams, name)
@@ -298,6 +334,8 @@ def get_captions(hparams, name):
         list.extend([c for idx, caption_list in enumerate(captions) for c in caption_list["caption"]])
     return list
 
+
+
 def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punctuation=True):
     """
     Given a caption json file for the COCO dataset, lower case the labels
@@ -311,11 +349,15 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
     punct = ""
     if not remove_punctuation:
         punct = "punct_"
+
     file_path = get_cleaned_captions_path(hparams, punct + hparams[name])
+
     if not Path(file_path).is_file():
         file_path = get_captions_path(hparams, hparams[name])
-    save_file_path = get_correct_annotation_file(hparams, name, remove_punctuation)
+    save_file_path = get_correct_annotation_file(
+        hparams, name, remove_punctuation)
     # Fallback on original files
+
     if not Path(file_path).is_file() and not save_file_path:
         raise Exception("Neither cleaned version of annotation files under nor original avalaible under : ",
                         hparams["root"])
@@ -329,7 +371,8 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
             cleaned_captions = []
             for idx, caption in enumerate(tqdm(captions["annotations"])):
                 if img_list is None or caption["image_id"] in img_list:
-                    cleaned_caption = preprocess_text(caption["caption"], remove_punctuation)
+                    cleaned_caption = preprocess_text(
+                        caption["caption"], remove_punctuation)
                     cleaned_captions.append(cleaned_caption)
                     captions["annotations"][idx]["caption"] = cleaned_caption
 
@@ -348,24 +391,33 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
             return cleaned_captions
 
 
-def clean_caption_annotations(annotation_dir, annotation_list, remove_punctuation=True):
+def clean_caption_annotations(hparams, annotation_list, remove_punctuation=True):
     for annotation in annotation_list:
-        create_list_of_captions_and_clean(annotation_dir, annotation, None, remove_punctuation)
+        create_list_of_captions_and_clean(
+            hparams, annotation, None, remove_punctuation)
 
 
-def calculate_rgb_stats():
-    clean_caption_annotations("../data/annotations/", ["captions_train2017.json", "captions_val2017.json"])
-    coco_train_set = dset.CocoDetection(root="../data/train2017",
-                                        annFile="../data/annotations/cleaned_captions_train2017.json",
-                                        transform=transforms.Compose([CenteringPad(),
-                                                                      transforms.Resize((640, 640)),
-                                                                      transforms.ToTensor()])
-                                        )
-    iss = ImageSizeStats(coco_train_set)
-    t = torch.ones(3)
+def preprocess_annotations(hparams):
+    # Clean captions
+    ann_path = os.path.join(hparams["root"], "annotations")
+    clean_caption_annotations(hparams, ["train", "val"])
 
-    rgb_means = iss.get_RGB_mean_sd()
-    create_json_config(rgb_means, "rgb_stats.json")
+    # Acquire training data
+    train_nm = hparams["train"]
+    train_root = os.path.join(hparams["root"], train_nm)
+    train_cleaned_captions = os.path.join(
+        ann_path, f"cleaned_captions_{train_nm}.json")
+
+    #print("Calculating train rgb stats...")
+    # coco_train_set = dset.CocoDetection(root=train_root,
+    #                                    annFile=train_cleaned_captions,
+    #                                    transform=transforms.Compose([CenteringPad(),
+    #                                                                  transforms.Resize((640, 640)),
+    #                                                                  transforms.ToTensor()]))
+    #iss = ImageSizeStats(coco_train_set)
+    #t = torch.ones(3)
+    #rgb_means = iss.get_RGB_mean_sd()
+    #create_json_config(rgb_means, f"rgb_stats_{train_nm}.json")
 
 
 def get_captions_path(hparams, dataset):
@@ -406,10 +458,12 @@ def create_cocosplit(args):
 
         number_of_images = len(images)
 
-        images_with_annotations = funcy.lmap(lambda a: int(a['image_id']), annotations)
+        images_with_annotations = funcy.lmap(
+            lambda a: int(a['image_id']), annotations)
 
         if args.having_annotations:
-            images = funcy.lremove(lambda i: i['id'] not in images_with_annotations, images)
+            images = funcy.lremove(
+                lambda i: i['id'] not in images_with_annotations, images)
 
         x, y = train_test_split(images, train_size=args.split, shuffle=True)
         if args.percentage < 0:
@@ -418,10 +472,13 @@ def create_cocosplit(args):
             args.percentage = 100
         break_x_idx = max(int(len(x) * args.percentage / 100) - 1, 0)
         break_y_idx = max(int(len(y) * args.percentage / 100) - 1, 0)
-        save_coco(args.train, info, licenses, x[0:break_x_idx], filter_annotations(annotations, x[0:break_x_idx]))
-        save_coco(args.test, info, licenses, y[0:break_y_idx], filter_annotations(annotations, y[0:break_y_idx]))
+        save_coco(args.train, info, licenses, x[0:break_x_idx], filter_annotations(
+            annotations, x[0:break_x_idx]))
+        save_coco(args.test, info, licenses, y[0:break_y_idx], filter_annotations(
+            annotations, y[0:break_y_idx]))
 
-        print("Saved {} entries in {} and {} in {}".format(len(x), args.train, len(y), args.test))
+        print("Saved {} entries in {} and {} in {}".format(
+            len(x), args.train, len(y), args.test))
 
 
 def reduce_cocosplit(args):
@@ -439,19 +496,23 @@ def reduce_cocosplit(args):
 
         number_of_images = len(images)
 
-        images_with_annotations = funcy.lmap(lambda a: int(a['image_id']), annotations)
+        images_with_annotations = funcy.lmap(
+            lambda a: int(a['image_id']), annotations)
 
         if args.having_annotations:
-            images = funcy.lremove(lambda i: i['id'] not in images_with_annotations, images)
+            images = funcy.lremove(
+                lambda i: i['id'] not in images_with_annotations, images)
 
         if args.percentage < 0:
             args.percentage = 0.0
         if args.percentage > 100:
             args.percentage = 100.0
 
-        x, _ = train_test_split(images, train_size=args.percentage / 100, shuffle=True)
+        x, _ = train_test_split(
+            images, train_size=args.percentage / 100, shuffle=True)
 
-        save_coco(args.train, info, licenses, x, filter_annotations(annotations, x))
+        save_coco(args.train, info, licenses, x,
+                  filter_annotations(annotations, x))
 
         print("Saved")
 
@@ -514,7 +575,8 @@ def reduce_annotation_size(annotation_directory="./data/annotations", cleaned_fi
                                   train=f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix + fs}',
                                   percentage=final_percentage)
         reduce_cocosplit(arg_for_split)
-        print("Annotations created:", f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix + fs}')
+        print("Annotations created:",
+              f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix + fs}')
 
 
 if __name__ == '__main__':
