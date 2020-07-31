@@ -16,6 +16,7 @@ from urllib.request import urlopen
 from zipfile import ZipFile
 from argparse import Namespace
 import model
+import util
 import torch.utils.data
 from pycocotools.coco import COCO
 
@@ -286,6 +287,28 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
     return None
 
 
+# def get_captions(hparams, name):
+#     """
+#     Only extracts the needed captions set in caption_number. Might reduce memory footprint for embeddings
+#     :param hparams:
+#     :param name:
+#     :return:
+#     """
+#
+#     captions_number = hparams["caption_number"]
+#     caption_file_path = get_correct_annotation_file(hparams, name)
+#
+#     coco_caps = COCO(caption_file_path)
+#     img_ids = coco_caps.getImgIds()
+#
+#     result = []
+#     for img in img_ids:
+#         #only load captions used during training
+#         ann_ids = coco_caps.getAnnIds(img)[:captions_number]
+#         anns = coco_caps.loadAnns(ann_ids)
+#         result.extend([a["caption"] for a in anns])
+#     return result
+
 def get_captions(hparams, name):
     """
     Only extracts the needed captions set in caption_number. Might reduce memory footprint for embeddings
@@ -294,18 +317,23 @@ def get_captions(hparams, name):
     :return:
     """
 
-    captions_number = hparams["caption_number"]
+    transform_pipeline, shuffle = util.CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, name)
+    train_file = hparams[name]
+    image_dir = os.path.join(hparams['root'], train_file)
     caption_file_path = get_correct_annotation_file(hparams, name)
 
-    coco_caps = COCO(caption_file_path)
-    img_ids = coco_caps.getImgIds()
+    coco_train_set = dset.CocoDetection(root=image_dir,
+                                        annFile=caption_file_path,
+                                        transform=transform_pipeline
+                                        )
+    loader = torch.utils.data.DataLoader(coco_train_set, batch_size=hparams["batch_size"])
+    captions_number = hparams["caption_number"]
+    list = []
+    for batch in tqdm(enumerate(loader)):
+        captions = batch[1][1][:captions_number]
+        list.extend([c for idx, caption_list in enumerate(captions) for c in caption_list["caption"]])
+    return list
 
-    result = []
-    for img in img_ids:
-        ann_ids = coco_caps.getAnnIds(img)
-        anns = coco_caps.loadAnns(ann_ids)
-        result.append(anns[captions_number]["caption"])
-    return result
 
 
 def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punctuation=True):

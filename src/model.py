@@ -1,11 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
 import torchvision.models as models
-import os
-from tqdm import tqdm
-from vocab import *
 
 
 class ImageToHiddenState(nn.Module):
@@ -287,6 +283,99 @@ class RNNModel(nn.Module):
             best_k = torch.argmax(last_col, dim=0)
 
             return new_seq[best_k].unsqueeze(0).unsqueeze(0)
+
+    def predict_beam_early_stop(self, input_for_prediction, beam_width=3):
+        """
+        Does the regular beam earch on full sequence but stops at the first ended sequence.
+        No memory prblems.
+        :param input_for_prediction:
+        :param beam_width:
+        :return:
+        """
+        with torch.no_grad():
+            self.eval()
+            seq_len = input_for_prediction[1].shape[2]
+            device = next(self.parameters()).device
+            # TODO set it as parameter, used to stop the search
+            end_token_id = 3
+            mask_idx = 0
+            image, vectorized_seq = input_for_prediction
+            start_token_idx = vectorized_seq[0, 0, 0]
+
+            track_best = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
+            found = []
+            track_best[:, 0] = start_token_idx
+            pred = self(*input_for_prediction)
+            first_predicted = torch.topk(pred[0][0], beam_width)
+            track_best[:, 1] = first_predicted.indices
+            last_candidates = {beam_row: (best_idx.item(), first_predicted.values[beam_row].item()) for
+                               beam_row, best_idx
+                               in enumerate(first_predicted.indices)}
+            current_candidates = []
+            # starts from 2 because track best has been initialized with <start> and word number 1 already
+            del pred
+            for seq_idx in range(2, seq_len):
+                # Start Handle found sequences
+                found_sequences = [beam_row for beam_row in last_candidates.keys() if
+                                   last_candidates[beam_row][0] == end_token_id]
+                beam_width -= len(found_sequences)
+                for found_row in found_sequences:
+                    loss = last_candidates[found_row][1]
+                    found.append((loss, track_best[found_row]))
+                    del last_candidates[found_row]
+                # updates the number of candidates available
+                last_candidates = {i: last_candidates[k] for i, k in enumerate(sorted(last_candidates.keys()))}
+                # End Handle found sequences
+                if found_sequences:
+                    update = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
+                    update_idx = 0
+                    for beam_row in range(track_best.shape[0]):
+                        if beam_row not in found_sequences:
+                            update[update_idx, :] = track_best[beam_row, :]
+                            update_idx += 1
+                    track_best = update
+                    del update
+                for beam_row in range(beam_width):
+                    # reuse the vectorized sequence and updates indices at each pas to save memory
+                    vectorized_seq[0][0][:seq_idx] = track_best[beam_row, : seq_idx]
+                    # detach because we don't need gradienst...
+                    temp_prediction = self(image, vectorized_seq)
+                    current_prediction_idx = seq_idx - 1
+                    # exclude mask index
+                    top_temp_predict = torch.topk(temp_prediction[0][current_prediction_idx][mask_idx+1:], beam_width)
+                    #all indices must be shifted by one...
+                    top_indices = top_temp_predict.indices.clone() + 1
+                    last_loss = last_candidates[beam_row][1]
+                    current_candidates.extend(
+                        (beam_row, best_idx.item(), top_temp_predict.values[pred_row].item() + last_loss) for
+                        pred_row, best_idx in enumerate(top_indices))
+                    del top_temp_predict
+                    del temp_prediction
+                    del top_indices
+                current_candidates.sort(key=lambda x: x[2], reverse=True)
+                current_seq_length = seq_idx + 1
+                # Update the vector with the best candidates and keep track of them
+                top_candidates = current_candidates[:beam_width]
+                current_candidates.clear()
+                track_temp = torch.zeros((beam_width, current_seq_length), dtype=torch.long).to(device)
+                for idx, backtrack_info in enumerate(top_candidates):
+                    last_row = backtrack_info[0]
+                    track_temp[idx, :] = track_best[last_row, : current_seq_length].clone()
+                    predicted_idx = backtrack_info[1]
+                    track_temp[idx, -1] = predicted_idx
+                track_best[:, :current_seq_length] = track_temp
+                del track_temp
+                last_candidates.clear()
+                last_candidates.update(
+                    {beam_row: (best_val[1], best_val[2]) for beam_row, best_val in enumerate(top_candidates)})
+
+        # Either something was found or we take the top candidate sitting on the first row...
+        if found:
+            found.sort(key=lambda x: x[0], reverse=True)
+            sentence = found[0][1].unsqueeze(0).unsqueeze(0)
+        else:
+            sentence = track_best[0].unsqueeze(0).unsqueeze(0)
+        return sentence
 
     def predict_greedy_sample(self, input_for_prediction, end_token_idx=3):
         """

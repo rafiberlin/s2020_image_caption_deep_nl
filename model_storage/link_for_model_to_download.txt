@@ -1,0 +1,5 @@
+Please download and unzip the model under /model_storage stored on google drive:
+
+https://drive.google.com/file/d/1V_xn4pOJ4RQRLcVfLUgLQea_QCzw_PE4/view?usp=sharing
+
+Do not change the model name!

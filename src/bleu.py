@@ -2,7 +2,10 @@ from pycocoevalcap.bleu.bleu import Bleu
 from tqdm import tqdm
 import preprocessing as prep
 import pandas as pd
-
+from datetime import datetime
+from itertools import combinations
+from scipy.stats.mstats import gmean
+import os
 
 class BleuScorer:
 
@@ -76,16 +79,18 @@ class BleuScorer:
         sampler = None
         if hparams["sampling_method"] == "beam_search":
             beam_width = hparams["beam_width"]
-            bw = f"_bw{hparams['beam_width']}"
-            def sampler(x): return network_model.predict_beam(x, beam_width)
+            bw = f"_bs_bw{hparams['beam_width']}"
+            sampler = lambda x: network_model.predict_beam(x, beam_width)
+        elif hparams["sampling_method"] == "beam_search_early_stop":
+            beam_width = hparams["beam_width"]
+            bw = f"_bse_bw{hparams['beam_width']}"
+            sampler = lambda x: network_model.predict_beam_early_stop(x, beam_width)
         elif hparams["sampling_method"] == "sample_search":
             bw = "_sc"
-
-            def sampler(x): return network_model.predict_greedy_sample(
-                x, end_token_idx)
+            sampler = lambda x: network_model.predict_greedy_sample(x, end_token_idx)
         else:
-            def sampler(x): return network_model.predict_greedy(
-                x, end_token_idx)
+            sampler = lambda x: network_model.predict_greedy(x, end_token_idx)
+
 
         for idx, current_batch in enumerate(train_loader):
             imgs, annotations, _ = current_batch

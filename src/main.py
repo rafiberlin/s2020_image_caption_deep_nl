@@ -15,6 +15,7 @@ from pathlib import Path
 import json
 import bleu
 import util
+import vocab as vocab
 
 HYPER_PARAMETER_CONFIG = "./hparams.json"
 GLOVE_SCRIPT = "./utils/glove_conv.py"
@@ -98,11 +99,10 @@ def compute_loss_on_validation(val_loader, device, network):
                 val_batch,
                 device)
             del val_batch
-            val_out_captions = val_out_captions.reshape(-1)
-            val_log_prediction = network(val_images, val_in_captions).reshape(
-                val_out_captions.shape[0], -1)
-            val_total_loss += val_loss_function(
-                val_log_prediction, val_out_captions)
+            val_log_prediction = network(val_images, val_in_captions).permute(0, 2, 1)
+            batch_times_caption = val_log_prediction.shape[0]
+            val_out_captions = val_out_captions.reshape(batch_times_caption, -1)
+            val_total_loss += val_loss_function(val_log_prediction, val_out_captions)
             del val_images
             del val_in_captions
             del val_out_captions
@@ -118,6 +118,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     :param train_loader:
     :param device:
     :param break_training_loop_idx:
+    :param val_loader:
     :return:
     """
 
@@ -297,7 +298,7 @@ def main():
     cleaned_captions = prep.get_captions(hparams, trainset_name)
     cutoff_for_unknown_words = hparams["cutoff"]
 
-    c_vectorizer = model.CaptionVectorizer.from_dataframe(
+    c_vectorizer = vocab.CaptionVectorizer.from_dataframe(
         cleaned_captions, cutoff_for_unknown_words)
     padding_idx = None
 
