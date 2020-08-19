@@ -167,6 +167,9 @@ class RNNModel(nn.Module):
         number_captions = labels.shape[1]
         seq_len = labels.shape[2]
         image_hidden = self.image_cnn(imgs)
+        start_index = labels[0][0][0]
+        device = next(self.parameters()).device
+
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
         image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(
             dim=1).repeat(1, number_captions, 1, 1)
@@ -186,8 +189,9 @@ class RNNModel(nn.Module):
             lstm_out, _ = self.rnn(image_hidden)
             classes = self.linear(lstm_out)
             out = F.log_softmax(classes, dim=2)
-            first_predicted = torch.topk(out[:, 0], 1)
-            indices = first_predicted.indices
+            # first_predicted = torch.topk(out[:, 0], 1)
+            # indices = first_predicted.indices
+            indices = torch.ones(batch_size * number_captions, dtype=torch.long).unsqueeze(dim=1).to(device)*start_index
             predicted_embeds = self.embeddings(indices)
             for idx in range(1, seq_len+1):
                 #lstm_out, _ = self.rnn(predicted_embeds[:,idx - 1,:].unsqueeze(dim=1))
