@@ -317,7 +317,7 @@ def main():
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"],
                              rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"],
-                             improve_cnn=hparams["improve_cnn"]).to(device)
+                             improve_cnn=hparams["improve_cnn"], teacher_forcing=hparams["teacher_forcing"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
     break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, train_loader,

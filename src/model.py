@@ -125,7 +125,8 @@ class RNNModel(nn.Module):
                  cnn_model=None,
                  rnn_model="lstm",
                  drop_out_prob=0.2,
-                 improve_cnn=False
+                 improve_cnn=False,
+                 teacher_forcing=True
                  ):
 
         super(RNNModel, self).__init__()
@@ -160,27 +161,44 @@ class RNNModel(nn.Module):
                                dropout=drop_out_prob)
         self.linear = nn.Linear(self.hidden_dim, self.n_classes)
         # self.drop_layer = nn.Dropout(p=drop_out_prob)
-
+        self.teacher_forcing = teacher_forcing
     def forward(self, imgs, labels):
         batch_size = imgs.shape[0]
         number_captions = labels.shape[1]
+        seq_len = labels.shape[2]
         image_hidden = self.image_cnn(imgs)
-
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
         image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(
             dim=1).repeat(1, number_captions, 1, 1)
-        embeds = self.embeddings(labels)
+        if self.teacher_forcing:
+            embeds = self.embeddings(labels)
 
-        # adds the image for each batch sample and caption as the first input of the sequence.
-        # its output will be discarded at the return statement, we don't use it in the loss function
-        embeds = torch.cat((image_hidden, embeds), dim=2)
-        embeds = embeds.reshape(
-            (batch_size * number_captions, -1, self.embedding_dim))
-        lstm_out, _ = self.rnn(embeds)
+            # adds the image for each batch sample and caption as the first input of the sequence.
+            # its output will be discarded at the return statement, we don't use it in the loss function
+            embeds = torch.cat((image_hidden, embeds), dim=2)
+            embeds = embeds.reshape(
+                (batch_size * number_captions, -1, self.embedding_dim))
+            lstm_out, _ = self.rnn(embeds)
+            classes = self.linear(lstm_out)
+            out = F.log_softmax(classes, dim=2)
+        else:
+            image_hidden = image_hidden.reshape((batch_size * number_captions, -1, self.embedding_dim))
+            lstm_out, _ = self.rnn(image_hidden)
+            classes = self.linear(lstm_out)
+            out = F.log_softmax(classes, dim=2)
+            first_predicted = torch.topk(out[:, 0], 1)
+            indices = first_predicted.indices
+            predicted_embeds = self.embeddings(indices)
+            for idx in range(1, seq_len+1):
+                #lstm_out, _ = self.rnn(predicted_embeds[:,idx - 1,:].unsqueeze(dim=1))
+                lstm_out, _ = self.rnn(predicted_embeds)
+                classes = self.linear(lstm_out)
+                out = torch.cat((out, F.log_softmax(classes, dim=2)), dim=1)
+                first_predicted = torch.topk(out[:, idx], 1)
+                indices = first_predicted.indices
+                #predicted_embeds = torch.cat((predicted_embeds, self.embeddings(indices)), dim=1)
+                predicted_embeds = self.embeddings(indices)
 
-        classes = self.linear(lstm_out)
-
-        out = F.log_softmax(classes, dim=2)
         # remove the output of the first hidden state corresponding to the image output...
         return out[:, 1:, :]
 
