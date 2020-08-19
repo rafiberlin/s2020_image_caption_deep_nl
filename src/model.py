@@ -186,7 +186,7 @@ class RNNModel(nn.Module):
             out = F.log_softmax(classes, dim=2)
         else:
             image_hidden = image_hidden.reshape((batch_size * number_captions, -1, self.embedding_dim))
-            lstm_out, _ = self.rnn(image_hidden)
+            lstm_out, hidden = self.rnn(image_hidden)
             classes = self.linear(lstm_out)
             out = F.log_softmax(classes, dim=2)
             # first_predicted = torch.topk(out[:, 0], 1)
@@ -194,13 +194,11 @@ class RNNModel(nn.Module):
             indices = torch.ones(batch_size * number_captions, dtype=torch.long).unsqueeze(dim=1).to(device)*start_index
             predicted_embeds = self.embeddings(indices)
             for idx in range(1, seq_len+1):
-                #lstm_out, _ = self.rnn(predicted_embeds[:,idx - 1,:].unsqueeze(dim=1))
-                lstm_out, _ = self.rnn(predicted_embeds)
+                lstm_out, hidden = self.rnn(predicted_embeds, hidden)
                 classes = self.linear(lstm_out)
                 out = torch.cat((out, F.log_softmax(classes, dim=2)), dim=1)
                 first_predicted = torch.topk(out[:, idx], 1)
                 indices = first_predicted.indices
-                #predicted_embeds = torch.cat((predicted_embeds, self.embeddings(indices)), dim=1)
                 predicted_embeds = self.embeddings(indices)
 
         # remove the output of the first hidden state corresponding to the image output...
