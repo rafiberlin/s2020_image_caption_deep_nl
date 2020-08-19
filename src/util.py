@@ -211,7 +211,7 @@ def create_model_name(hparams):
         norm = "_with_norm"
     clip_grad = ""
     if hparams['clip_grad']:
-        clip_grad = f"_cg{hparams['clip_grad']}"
+        clip_grad = "_cg"
     improve_embeddings = ""
     if hparams['improve_embedding']:
         improve_embeddings = "_ie"
