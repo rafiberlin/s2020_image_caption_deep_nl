@@ -34,6 +34,15 @@ pip3 install -r requirements.txt
 
 Requirements have been automatically generated using [pigar](https://github.com/damnever/pigar).
 
+Please note that you will need to install the pytorch framework that matches your Nvidia GPU Drivers manually.
+
+For our project, we installed pytorch and torchvision with:
+
+```
+pip install torch==1.5.1+cu101 torchvision==0.6.1+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+```
+Please consult [pytorch.org](https://pytorch.org/get-started/locally/) to get pip instructions for other versions.
+
 ## Running
 
 ```
@@ -42,6 +51,14 @@ python3 src/main.py
 
 Model checkpoints will be saved in the model_storage directory,
 which will be created if non-existent.
+
+## Optional: Use the trained model in the Jupyter Notebook under  notebooks/run_model_evaluation.ipynb
+
+Please download the saved model from [google drive](https://drive.google.com/file/d/1V_xn4pOJ4RQRLcVfLUgLQea_QCzw_PE4/view)
+
+And unzip it under: /model_storage/lp10_img370_cs320_resnet50_gru_l3_hdim512_emb300_lr0.001_wd0_epo75_bat32_do0_cut2_can5_with_norm_ie_s.pt
+
+Please do not change the name of the model!
 
 ## Some parameters in hparams.json explained
 
@@ -94,6 +111,7 @@ training will stop and the last model before this loss increase will be saved.
 All these parameters will influence the name of the saved model.
 * keep_best_total_loss: dependent on training_report_frequency. If set to true, training loop will be stopped early to 
 reload the previous model, if the total loss stops decreasing
+
 For example, based on the training configuration, a valid model name could be: 
 
 lp1_img256_mobilenet_gru_l4_hdim512_emb300_lr0.001_wd1e-05_epo300_bat32_do0.35_cut2_can3_with_norm_ie_s_ic.pt
