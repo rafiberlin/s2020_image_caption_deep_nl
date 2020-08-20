@@ -4,37 +4,6 @@ import torch.nn.functional as F
 import torchvision.models as models
 
 
-class ImageToHiddenState(nn.Module):
-    """
-    We try to transform each image to an hidden state with 120 values...
-    DO NOT USE, broken!
-    """
-
-    def __init__(self, output_dim=120):
-        super(ImageToHiddenState, self).__init__()
-
-        self.conv1 = nn.Conv2d(
-            in_channels=3, out_channels=6, kernel_size=5, stride=3)
-        self.conv2 = nn.Conv2d(
-            in_channels=6, out_channels=12, kernel_size=5, stride=3)
-        self.out = nn.Linear(in_features=12 * 7 * 7, out_features=output_dim)
-
-    def forward(self, t):
-        t = self.conv1(t)
-        t = F.relu(t)
-        t = F.max_pool2d(t, kernel_size=3, stride=3)
-
-        t = self.conv2(t)
-        t = F.relu(t)
-        t = F.max_pool2d(t, kernel_size=3, stride=3)
-
-        t = t.reshape(-1, 12 * 7 * 7)
-        t = self.out(t)
-        t = F.relu(t)
-
-        return t
-
-
 class VGG16Module(nn.Module):
     """
 
@@ -58,11 +27,9 @@ class VGG16Module(nn.Module):
             with torch.no_grad():
                 y = self.vgg16(img)
             y = self.linear(y)
-            # y = y.relu()
         else:
             y = self.vgg16(img)
             y = self.linear(y)
-            # y = y.relu()
         return y
 
 
@@ -108,11 +75,9 @@ class MobileNetModule(nn.Module):
             with torch.no_grad():
                 y = self.mobile(img)
             y = self.linear(y)
-            # y = y.relu()
         else:
             y = self.mobile(img)
             y = self.linear(y)
-            # y = y.relu()
         return y
 
 
@@ -150,8 +115,9 @@ class RNNModel(nn.Module):
             self.image_cnn = Resnet50Module(
                 self.embedding_dim, self.improve_cnn)
         else:
-            print("Using default cnn...")
-            self.image_cnn = ImageToHiddenState(self.embedding_dim)
+            print("Using default cnn: mobilenet")
+            self.image_cnn = MobileNetModule(
+                self.embedding_dim, self.improve_cnn)
         if self.rnn_model == "gru":
             self.rnn = nn.GRU(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True,
                               dropout=drop_out_prob)
@@ -186,13 +152,11 @@ class RNNModel(nn.Module):
 
     def predict_greedy(self, input_for_prediction, end_token_idx=3):
         """
-        Only for dev purposes, allow us to get some outputs.
-        :param model:
-        :param input_for_prediction:
-        :param end_token_idx:
-        :param prediction_number:
-        :param found_sequences:
-        :return:
+        Generate captions by selecting the highest probability word at each step
+        :param input_for_prediction: a tuple containing the image and an empty sequence except
+        for the <BEGIN> token
+        :param end_token_idx: id of the vectorized <END> token
+        :return: a vectorized sequence to be decoded
         """
         with torch.no_grad():
             self.eval()
@@ -212,7 +176,12 @@ class RNNModel(nn.Module):
 
     def predict_beam(self, input_for_prediction, beam_width=3):
         """
-        WIP implementation of beam search
+        Generate captions by selecting the best sequence out of the defined beam width.
+        The sequence length is set to 30, to enable faster computation.
+        :param input_for_prediction: a tuple containing the image and an empty sequence except
+        for the <BEGIN> token
+        :param beam_width: Number of generated sequences to consider.
+        :return: a vectorized sequence to be decoded
         """
         with torch.no_grad():
             self.eval()
@@ -286,11 +255,12 @@ class RNNModel(nn.Module):
 
     def predict_beam_early_stop(self, input_for_prediction, beam_width=3):
         """
-        Does the regular beam earch on full sequence but stops at the first ended sequence.
-        No memory prblems.
-        :param input_for_prediction:
-        :param beam_width:
-        :return:
+        Does the regular beam search on full sequence but stops at the first ended sequence.
+        No memory problems.
+        :param input_for_prediction: a tuple containing the image and an empty sequence except
+        for the <BEGIN> token
+        :param beam_width: Number of generated sequences to consider.
+        :return: a vectorized sequence to be decoded
         """
         with torch.no_grad():
             self.eval()
@@ -380,11 +350,9 @@ class RNNModel(nn.Module):
     def predict_greedy_sample(self, input_for_prediction, end_token_idx=3):
         """
         Only for dev purposes, allow us to get some outputs.
-        :param self:
-        :param input_for_prediction:
-        :param end_token_idx:
-        :param prediction_number:
-        :param found_sequences:
+        :param input_for_prediction: a tuple containing the image and an empty sequence except
+        for the <BEGIN> token
+        :return: a vectorized sequence to be decoded
         :return:
         """
         with torch.no_grad():
