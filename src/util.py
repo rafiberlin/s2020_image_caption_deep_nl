@@ -12,6 +12,12 @@ import preprocessing as prep
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
+        """
+        Constructor
+        :param cocodaset: Pytorch COCO dataloader
+        :param vectorizer: vectorized vocabulary
+        :param caption_number: number of captions to use
+        """
         self.cocodaset = cocodaset
         self.vectorizer = vectorizer
         if caption_number > 5:
@@ -20,6 +26,14 @@ class CocoDatasetWrapper(Dataset):
 
     @classmethod
     def _get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
+        """
+        Returns a transformation pipeline for dataloader based on the dataset split
+        and whether the dataset should be shuffled or not
+        :param hparams: Project parameters
+        :param dataset_name: name of the datasets
+        :return: tuples with a transformation pipeline and a boolean
+        """
+
         img_size = hparams['image_size']
         # Most on the example in pytorch have this minimum size before cropping
         assert img_size >= 256
@@ -91,12 +105,6 @@ class CocoDatasetWrapper(Dataset):
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
 
-        # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
-        # stats_rounding = hparams["rounding"]
-        # rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
-        #              "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
-        # rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
-        # rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
         transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(
             hparams, dataset_name)
 
@@ -128,6 +136,12 @@ class CocoDatasetWrapper(Dataset):
         return self.cocodaset.__len__()
 
     def __getitem__(self, index):
+        """
+        Overwrite the pytorch dataloader behavior to returns
+        the vectorized captions as needed during training
+        :param index:
+        :return:
+        """
         image, captions = self.cocodaset.__getitem__(index)
         # it seams like we always get 5 different captions for an image...
         num_captions = len(captions)
@@ -148,23 +162,15 @@ class CocoDatasetWrapper(Dataset):
             vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
 
 
-def generate_batches(dataset, batch_size, shuffle=True,
-                     drop_last=True, device="cpu"):
-    """
-    A generator function which wraps the PyTorch DataLoader. It will
-      ensure each tensor is on the write device location.
-    """
-    dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size,
-                                             shuffle=shuffle, drop_last=drop_last)
-
-    for data_dict in dataloader:
-        out_data_dict = {}
-        for name, tensor in data_dict.items():
-            out_data_dict[name] = data_dict[name].to(device)
-        yield out_data_dict
-
-
 def create_embedding(hparams, c_vectorizer, padding_idx=0):
+    """
+    Based on vectorized vocabulary, creates embedding from scratch or using GLOVE
+    :param hparams: the project parameters
+    :param c_vectorizer: vectorized vocabulary
+    :param padding_idx: The index of the <MASK> token
+    :return:
+    """
+
     vocabulary_size = len(c_vectorizer.get_vocab())
     if hparams["use_glove"]:
         print("Loading glove vectors...")
@@ -201,8 +207,8 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
 def create_model_name(hparams):
     """
     Creates a model name that encodes the training parameters
-    :param hparams:
-    :return:
+    :param hparams: the project parameters
+    :return: a string that encodes the training parameters
     """
 
     root_name, extension = hparams["model_name"].split(".")
