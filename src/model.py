@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
-
+import random
 
 class ImageToHiddenState(nn.Module):
     """
@@ -175,7 +175,7 @@ class RNNModel(nn.Module):
             dim=1).repeat(1, number_captions, 1, 1)
 
         if self.teacher_forcing:
-            teacher_force = torch.rand() < 0.5
+            teacher_force = random.random() < 0.5
         else:
             teacher_force = False
 
