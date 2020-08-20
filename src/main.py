@@ -91,6 +91,13 @@ def init_model(hparams, network, force_training=False):
 
 
 def compute_loss_on_validation(val_loader, device, network):
+    """
+    Calculate the total loss on the validation set
+    :param val_loader:
+    :param device:
+    :param network:
+    :return:
+    """
     val_total_loss = torch.zeros(1, device=device)
     val_loss_function = nn.NLLLoss().to(device)
     with torch.no_grad():
@@ -255,6 +262,10 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
 
 
 def main():
+    """
+    Executes the project
+    :return:
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--params", help="hparams config file")
     parser.add_argument("--train", action="store_true", help="force training")
@@ -283,7 +294,6 @@ def main():
     torch.cuda.empty_cache()
 
     trainset_name = "train"
-    # trainset_name = "val"
     valset_name = "val"
     testset_name = "test"
     device = hparams["device"]
@@ -332,7 +342,7 @@ def main():
         hparams, train_loader, network, break_training_loop_idx, "train")
     bleu.BleuScorer.perform_whole_evaluation(
         hparams, val_loader, network, break_val_loop_idx, "val")
-    #model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
+    # model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
 
 
 if __name__ == '__main__':
