@@ -312,8 +312,8 @@ class RNNModel(nn.Module):
                     temp_prediction = self(image, vectorized_seq)
                     current_prediction_idx = seq_idx - 1
                     # exclude mask index
-                    top_temp_predict = torch.topk(temp_prediction[0][current_prediction_idx][mask_idx+1:], beam_width)
-                    #all indices must be shifted by one...
+                    top_temp_predict = torch.topk(temp_prediction[0][current_prediction_idx][mask_idx + 1:], beam_width)
+                    # all indices must be shifted by one...
                     top_indices = top_temp_predict.indices.clone() + 1
                     last_loss = last_candidates[beam_row][1]
                     current_candidates.extend(
