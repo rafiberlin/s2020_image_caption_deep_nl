@@ -4,8 +4,12 @@ from collections import Counter
 import torch
 import string
 
+
 class Vocabulary:
-    """Class to process text and extract vocabulary for mapping"""
+    """
+    Class to process text and extract vocabulary for mapping
+    Adapted from 'Natural Language Processing with PyTorch'
+    """
 
     def __init__(self, token_to_idx=None, mask_token="<MASK>", add_unk=True, unk_token="<UNK>"):
         """
@@ -62,16 +66,6 @@ class Vocabulary:
             self._idx_to_token[index] = token
         return index
 
-    def add_many(self, tokens):
-        """Add a list of tokens into the Vocabulary
-
-        Args:
-            tokens (list): a list of string tokens
-        Returns:
-            indices (list): a list of indices corresponding to the tokens
-        """
-        return [self.add_token(token) for token in tokens]
-
     def lookup_token(self, token):
         """Retrieve the index associated with the token
           or the UNK index if token isn't present.
@@ -111,7 +105,10 @@ class Vocabulary:
 
 
 class CaptionVectorizer:
-    """ The Vectorizer which coordinates the Vocabularies and puts them to use"""
+    """
+    The Vectorizer which coordinates the Vocabularies and puts them to use
+    Adapted from 'Natural Language Processing with PyTorch'
+    """
 
     def __init__(self, caption_vocab, max_sequence_length):
         self.caption_vocab = caption_vocab
@@ -156,9 +153,9 @@ class CaptionVectorizer:
         vector_length = self.max_sequence_length - 1
 
         x_vector = np.ones(vector_length, dtype=np.int64) * \
-            self.caption_vocab.mask_index
+                   self.caption_vocab.mask_index
         y_vector = np.ones(vector_length, dtype=np.int64) * \
-            self.caption_vocab.mask_index
+                   self.caption_vocab.mask_index
         x_vector[:len(indices) - 1] = indices[:len(indices) - 1]
         y_vector[: len(indices) - 1] = indices[1:]
         return x_vector, y_vector
@@ -175,7 +172,13 @@ class CaptionVectorizer:
 
     @classmethod
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):
-
+        """
+        Creates a vectorizer object from a dataframe
+        :param captions: captions in a dataframe
+        :param cutoff: the limit to consider a word as known
+        :param exclude_punctuation: boolean to decide whether the punctuation should be included or not
+        :return: an insatnce of CaptionVectorizer
+        """
         captions_frame = pd.DataFrame(captions, columns=["captions"])
         # +2 because we add the starting and ending sequence tags...
         max_sequence_length = max(map(len, captions_frame.captions)) + 2
@@ -196,11 +199,6 @@ class CaptionVectorizer:
                 caption_vocab.add_token(word)
 
         return cls(caption_vocab, max_sequence_length)
-
-    @classmethod
-    def from_serializable(cls, contents):
-        caption_vocab = SequenceVocabulary.from_serializable(contents)
-        return cls(caption_vocab=caption_vocab)
 
     def to_serializable(self):
         return {'caption_vocab': self.caption_vocab.to_serializable()}
