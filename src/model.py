@@ -173,7 +173,13 @@ class RNNModel(nn.Module):
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
         image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(
             dim=1).repeat(1, number_captions, 1, 1)
+
         if self.teacher_forcing:
+            teacher_force = torch.rand() < 0.5
+        else:
+            teacher_force = False
+
+        if teacher_force:
             embeds = self.embeddings(labels)
 
             # adds the image for each batch sample and caption as the first input of the sequence.
