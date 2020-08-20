@@ -7,11 +7,23 @@ from itertools import combinations
 from scipy.stats.mstats import gmean
 import os
 
+
 class BleuScorer:
 
     @classmethod
     def evaluate_gold(cls, hparams, train_loader, idx_break=-1, prefix="train"):
+        """
+        Performs the average of the BLEU 4 evaluation on the human description.
+        1 captions is tested against all the other, for all caption used for a picture and the
+        result is averaged.
+        Uses the original Eval Coco API.
 
+        :param hparams: all project parameters
+        :param train_loader: Coco Dataset dataloader to access examples
+        :param idx_break: for debugging purpose only, do not use
+        :param prefix: prefix name for saved result files
+        :return:
+        """
         # NEVER do [{}]* 5!!!!
         # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
         caption_number = hparams["caption_number"]
@@ -26,7 +38,7 @@ class BleuScorer:
 
         for idx, current_batch in enumerate(tqdm(train_loader)):
             imgs, \
-                annotations, _ = current_batch
+            annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
                 # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
                 # deterministic...
@@ -66,6 +78,17 @@ class BleuScorer:
 
     @classmethod
     def evaluate(cls, hparams, train_loader, network_model, end_token_idx=3, idx_break=-1, prefix="train"):
+        """
+        Performs the BLEU 4 score for the trained model.
+        :param hparams: all project parameters
+        :param train_loader: Coco Dataset dataloader to access examples
+        :param network_model: The trained model used for prediction
+        :param end_token_idx: The index of the <END> token, as stored in the vocabulary vectorizer
+        :param idx_break: for debugging purpose only, do not use
+        :param prefix: prefix name for saved result files
+        :return:
+        """
+
         # there is no other method to retrieve the current device on a model...
         device = next(network_model.parameters()).device
         hypothesis = {}
@@ -90,7 +113,6 @@ class BleuScorer:
             sampler = lambda x: network_model.predict_greedy_sample(x, end_token_idx)
         else:
             sampler = lambda x: network_model.predict_greedy(x, end_token_idx)
-
 
         for idx, current_batch in enumerate(train_loader):
             imgs, annotations, _ = current_batch
@@ -136,32 +158,16 @@ class BleuScorer:
                 {k: (hypothesis[k], references[k]) for k in hypothesis.keys()}, filepath)
             prep.create_json_config([score], filepath_2)
 
-        """
-        this code delivers the same results but we can't calculate a reasonable score on the 
-        predefined labels to compare against gold (we always get 100%...)
-        res looks like this : [{"image_id": 139, "caption": "a woman posing for the camera standing on skis"}, ... ]
-        from pycocoevalcap.eval import COCOEvalCap
-        coco_cap = COCO(caption_file_path)
-        #imgIds = sorted([ batch_one[1][0]["image_id"][i].item() for i in range(batch_size)])
-        imgIds = sorted([ id for id in hypothesis.keys()])
-        res = [ {"image_id": k, "caption": hypothesis[k][0]} for k in sorted(hypothesis.keys())]
-        prep.create_json_config(res, "./res_.json", 0)
-        coco_res = coco_cap.loadRes("./res_.json")
-        #CocoEvalBleuOnly is a copy Paste of the CocoEval class but where we only put BleuScorer...
-        cocoEval = model.CocoEvalBleuOnly(coco_cap, coco_res)
-        cocoEval.params['image_id'] = imgIds
-        s = cocoEval.evaluate()
-        """
-
         return pd_score
 
     @classmethod
     def calc_scores(cls, ref, hypo):
         """
         Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
-        ref, dictionary of reference sentences (id, sentence)
-        hypo, dictionary of hypothesis sentences (id, sentence)
-        score, dictionary of scores
+        which uses the original Coco Eval API in python 3. It performs the BLEU 4 score
+        :param ref: dictionary of reference sentences (id, sentence)
+        :param hypo: dictionary of hypothesis sentences (id, sentence)
+        :return: score, dictionary of BLEU scores
         """
         scorers = [
             (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"])
@@ -178,6 +184,16 @@ class BleuScorer:
 
     @classmethod
     def perform_whole_evaluation(cls, hparams, loader, network, break_training_loop_idx=3, prefix="train"):
+        """
+        Performs and print the model evaluation
+        :param hparams: all project parameters
+        :param loader: Coco Dataset dataloader to access examples
+        :param network: The trained model used for prediction
+        :param break_training_loop_idx: for debugging purpose only, do not use
+        :param prefix: prefix name for saved result files
+        :return:
+        """
+
         print("##########################################################")
         print("\nRun complete evaluation for:", prefix)
         train_bleu_score = BleuScorer.evaluate(hparams, loader, network,
