@@ -22,7 +22,7 @@ class BleuScorer:
         :param train_loader: Coco Dataset dataloader to access examples
         :param idx_break: for debugging purpose only, do not use
         :param prefix: prefix name for saved result files
-        :return:
+        :return: Pandas Dataframe of scores
         """
         # NEVER do [{}]* 5!!!!
         # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
@@ -79,14 +79,15 @@ class BleuScorer:
     @classmethod
     def evaluate(cls, hparams, train_loader, network_model, end_token_idx=3, idx_break=-1, prefix="train"):
         """
-        Performs the BLEU 4 score for the trained model.
+        Performs the BLEU 4 score for the trained model
+
         :param hparams: all project parameters
         :param train_loader: Coco Dataset dataloader to access examples
         :param network_model: The trained model used for prediction
         :param end_token_idx: The index of the <END> token, as stored in the vocabulary vectorizer
         :param idx_break: for debugging purpose only, do not use
         :param prefix: prefix name for saved result files
-        :return:
+        :return: Pandas dataframe of scores
         """
 
         # there is no other method to retrieve the current device on a model...
@@ -164,7 +165,8 @@ class BleuScorer:
     def calc_scores(cls, ref, hypo):
         """
         Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
-        which uses the original Coco Eval API in python 3. It performs the BLEU 4 score
+        which uses the original Coco Eval API in python 3. It performs the BLEU 4 score.
+
         :param ref: dictionary of reference sentences (id, sentence)
         :param hypo: dictionary of hypothesis sentences (id, sentence)
         :return: score, dictionary of BLEU scores
@@ -186,12 +188,12 @@ class BleuScorer:
     def perform_whole_evaluation(cls, hparams, loader, network, break_training_loop_idx=3, prefix="train"):
         """
         Performs and print the model evaluation
+
         :param hparams: all project parameters
         :param loader: Coco Dataset dataloader to access examples
         :param network: The trained model used for prediction
         :param break_training_loop_idx: for debugging purpose only, do not use
         :param prefix: prefix name for saved result files
-        :return:
         """
 
         print("##########################################################")

@@ -36,7 +36,7 @@ class VGG16Module(nn.Module):
 class Resnet50Module(nn.Module):
 
     def __init__(self, embed_size, improve_pretrained=False):
-        super(Resnet50Module, self).__init__()
+        super().__init__()
         resnet = models.resnet50(pretrained=True)
         modules = list(resnet.children())[:-1]
         self.resnet = nn.Sequential(*modules)
@@ -65,6 +65,11 @@ class MobileNetModule(nn.Module):
     """
 
     def __init__(self, output_dim, improve_pretrained=False):
+        """
+        :param output_dim: Output dimension of the linear layer
+        :param improve_pretrained: Whether or not to improve the pretrained mobilenet model
+        """
+
         super().__init__()
         self.mobile = models.mobilenet_v2(pretrained=True)
         self.linear = nn.Linear(1000, output_dim)
@@ -93,7 +98,7 @@ class RNNModel(nn.Module):
                  improve_cnn=False
                  ):
 
-        super(RNNModel, self).__init__()
+        super().__init__()
         self.embeddings = pretrained_embeddings
         self.embedding_dim = self.embeddings.embedding_dim
         self.vocabulary_size = self.embeddings.num_embeddings
@@ -178,8 +183,8 @@ class RNNModel(nn.Module):
         """
         Generate captions by selecting the best sequence out of the defined beam width.
         The sequence length is set to 30, to enable faster computation.
-        :param input_for_prediction: a tuple containing the image and an empty sequence except
-        for the <BEGIN> token
+
+        :param input_for_prediction: a tuple containing the image and an empty sequence except for the <BEGIN> token
         :param beam_width: Number of generated sequences to consider.
         :return: a vectorized sequence to be decoded
         """
@@ -257,8 +262,8 @@ class RNNModel(nn.Module):
         """
         Does the regular beam search on full sequence but stops at the first ended sequence.
         No memory problems.
-        :param input_for_prediction: a tuple containing the image and an empty sequence except
-        for the <BEGIN> token
+
+        :param input_for_prediction: a tuple containing the image and an empty sequence except for the <BEGIN> token
         :param beam_width: Number of generated sequences to consider.
         :return: a vectorized sequence to be decoded
         """
@@ -350,10 +355,9 @@ class RNNModel(nn.Module):
     def predict_greedy_sample(self, input_for_prediction, end_token_idx=3):
         """
         Only for dev purposes, allow us to get some outputs.
-        :param input_for_prediction: a tuple containing the image and an empty sequence except
-        for the <BEGIN> token
+
+        :param input_for_prediction: a tuple containing the image and an empty sequence except for the <BEGIN> token
         :return: a vectorized sequence to be decoded
-        :return:
         """
         with torch.no_grad():
             self.eval()

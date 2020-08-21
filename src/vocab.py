@@ -120,8 +120,8 @@ class CaptionVectorizer:
     def decode(self, vectorized_input):
         """
         Pytorch array with list of indices
-        :param vectorized_input:
-        :return:
+        :param vectorized_input: Input vector
+        :return: Caption converted to str
         """
         return " ".join([self.caption_vocab._idx_to_token[i.item()] for i in vectorized_input
                          if i.item() not in
@@ -131,11 +131,11 @@ class CaptionVectorizer:
 
     def vectorize(self, title):
         """
-        Args:
-            title (str): the string of words separated by a space
-            vector_length (int): an argument for forcing the length of index vector
-        Returns:
-            the vetorized title (numpy.array)
+        Converts a caption string into a vector
+
+        :param title: the string of words separated by a space
+        :param vector_length: an argument for forcing the length of index vector
+        :return: the vetorized title (numpy.array)
         """
         indices = [self.caption_vocab.begin_seq_index]
         indices.extend(self.caption_vocab.lookup_token(token)
@@ -163,7 +163,7 @@ class CaptionVectorizer:
     def create_starting_sequence(self):
         """
         Creates pytorch array with a starting sequence token
-        :return:
+        :return: Empty vector with start token
         """
         starting_token = torch.ones(
             self.max_sequence_length - 1, dtype=torch.long) * self.caption_vocab.mask_index
@@ -174,6 +174,7 @@ class CaptionVectorizer:
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):
         """
         Creates a vectorizer object from a dataframe
+
         :param captions: captions in a dataframe
         :param cutoff: the limit to consider a word as known
         :param exclude_punctuation: boolean to decide whether the punctuation should be included or not
@@ -209,7 +210,7 @@ class SequenceVocabulary(Vocabulary):
                  mask_token="<MASK>", begin_seq_token="<BEGIN>",
                  end_seq_token="<END>"):
 
-        super(SequenceVocabulary, self).__init__(token_to_idx)
+        super().__init__(token_to_idx)
 
         self._mask_token = mask_token
         self._unk_token = unk_token
