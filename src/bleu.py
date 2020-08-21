@@ -40,8 +40,8 @@ class BleuScorer:
             imgs, \
             annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
-                # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
-                # deterministic...
+                # Create the list of all 4 captions out of 5.
+                # Because range(5) is ordered, the result is deterministic.
                 for c in list(combinations(range(caption_number), caption_number - 1)):
                     for hypothesis_idx in range(caption_number):
                         if hypothesis_idx not in c:
@@ -58,7 +58,6 @@ class BleuScorer:
                                     v.decode(v.vectorize(annotations[annotation_idx]["caption"][sample_idx])[0]) for
                                     annotation_idx in list(c)]
             if idx == idx_break:
-                # useful for debugging
                 break
 
         scores = []
@@ -90,7 +89,7 @@ class BleuScorer:
         :return: Pandas dataframe of scores
         """
 
-        # there is no other method to retrieve the current device on a model...
+        # There is no other method to retrieve the current device on a model.
         device = next(network_model.parameters()).device
         hypothesis = {}
         references = {}
@@ -143,8 +142,8 @@ class BleuScorer:
                     print("gold captions", references[_id])
 
             if idx == idx_break:
-                # useful for debugging
                 break
+
         score = cls.calc_scores(references, hypothesis)
         pd_score = pd.DataFrame([score])
 

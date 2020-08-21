@@ -148,7 +148,7 @@ class CocoDatasetWrapper(Dataset):
         :return: 3-tuple of image, in-caption and out-caption
         """
         image, captions = self.cocodaset.__getitem__(index)
-        # it seams like we always get 5 different captions for an image...
+        # We always get 5 different captions for an image
         num_captions = len(captions)
         # self.vectorizer.max_sequence_length - 1 because in label and out labels are shifted by 1 to match
         # for example, if the last real word in a caption is cat, the expected output caption is <end>...

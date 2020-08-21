@@ -29,6 +29,7 @@ def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
     Returns the indices needed to stop the loop early (only for debugging)
     Make sure that hparams["shuffle"] is false when debugging.
     Otherwise hparams["shuffle"] must always be true for correct learning
+
     :param hparams:
     :param train_loader:
     :param val_loader:
@@ -57,6 +58,7 @@ def init_model(hparams, network, force_training=False):
     """
     Init the model with pre-existing learned values.
     Returns a boolean which indicates if the training should be started or not.
+
     :param hparams:
     :param network:
     :param force_training:
@@ -93,10 +95,11 @@ def init_model(hparams, network, force_training=False):
 def compute_loss_on_validation(val_loader, device, network):
     """
     Calculate the total loss on the validation set
-    :param val_loader:
-    :param device:
-    :param network:
-    :return:
+
+    :param val_loader: Datraset loader for the validation set
+    :param device: Device to use
+    :param network: Network model
+    :return: Validation loss
     """
     val_total_loss = torch.zeros(1, device=device)
     val_loss_function = nn.NLLLoss().to(device)
@@ -119,14 +122,14 @@ def compute_loss_on_validation(val_loader, device, network):
 def train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader):
     """
     Performs the main training loop
-    :param hparams:
-    :param loss_function:
-    :param network:
-    :param train_loader:
-    :param device:
-    :param break_training_loop_idx:
-    :param val_loader:
-    :return:
+
+    :param hparams: Hyperparameters
+    :param loss_function: Loss function to use
+    :param network: Network model
+    :param train_loader: Dataloader for the training set
+    :param device: Device to use
+    :param break_training_loop_idx: Index to break training loop
+    :param val_loader: Dataloader for the validation set
     """
 
     model_dir = hparams["model_storage"]
@@ -262,10 +265,6 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
 
 
 def main():
-    """
-    Executes the project
-    :return:
-    """
     parser = argparse.ArgumentParser()
     parser.add_argument("-p", "--params", help="hparams config file")
     parser.add_argument("--train", action="store_true", help="force training")
@@ -318,6 +317,7 @@ def main():
     embedding = util.create_embedding(hparams, c_vectorizer, padding_idx)
     train_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, trainset_name)
+
     # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
     test_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, testset_name, "train2017")
@@ -343,7 +343,6 @@ def main():
     bleu.BleuScorer.perform_whole_evaluation(
         hparams, val_loader, network, break_val_loop_idx, "val")
     # model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
-
 
 if __name__ == '__main__':
     main()

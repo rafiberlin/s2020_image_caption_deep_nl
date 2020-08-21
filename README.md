@@ -56,7 +56,7 @@ which will be created if non-existent.
 
 Please download the saved model from [google drive](https://drive.google.com/file/d/1V_xn4pOJ4RQRLcVfLUgLQea_QCzw_PE4/view)
 
-And unzip it under: /model_storage/lp10_img370_cs320_resnet50_gru_l3_hdim512_emb300_lr0.001_wd0_epo75_bat32_do0_cut2_can5_with_norm_ie_s.pt
+And unzip it under: ```/model_storage/lp10_img370_cs320_resnet50_gru_l3_hdim512_emb300_lr0.001_wd0_epo75_bat32_do0_cut2_can5_with_norm_ie_s.pt```
 
 Please do not change the name of the model!
 
@@ -114,5 +114,5 @@ reload the previous model, if the total loss stops decreasing
 
 For example, based on the training configuration, a valid model name could be: 
 
-lp1_img256_mobilenet_gru_l4_hdim512_emb300_lr0.001_wd1e-05_epo300_bat32_do0.35_cut2_can3_with_norm_ie_s_ic.pt
+```lp1_img256_mobilenet_gru_l4_hdim512_emb300_lr0.001_wd1e-05_epo300_bat32_do0.35_cut2_can3_with_norm_ie_s_ic.pt```
 
