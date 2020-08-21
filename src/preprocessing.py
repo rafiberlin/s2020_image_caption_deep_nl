@@ -499,24 +499,3 @@ def reduce_annotation_size(annotation_directory="./data/annotations", cleaned_fi
         reduce_cocosplit(arg_for_split)
         print("Annotations created:",
               f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix + fs}')
-
-
-if __name__ == '__main__':
-    hparams = read_json_config("./hparams.json")
-
-    # UNCOMMENT this part to create the custom dataset splits stored in Git
-    # Because the original test labels are missing in the Coco dataset (remember, it was meant as a competition)
-    # we need to split the traning dataset into training and testing 80% / 20%
-
-    # arg_for_split = Namespace(annotations='./data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
-    #         test='./data/annotations/cleaned_captions_test2017.json', train='./data/annotations/cleaned_captions_train2017.json', percentage=100)
-    # create_cocosplit(arg_for_split)
-    # clean_caption_annotations(hparams, ["train", "val"],  False)
-    # percentage_list = [1, 2, 5, 6, 10]
-    # for p in percentage_list:
-    #     reduce_annotation_size("./data/annotations", "cleaned_captions_punct_", p)
-    #     reduce_annotation_size("./data/annotations", "cleaned_captions_", 2)
-
-    download_unpack_zip(hparams["img_train_url"], hparams["root"])
-    download_unpack_zip(hparams["img_val_url"], hparams["root"])
-    download_unpack_zip(hparams["glove_url"], hparams["root"])
