@@ -13,13 +13,12 @@ class Vocabulary:
 
     def __init__(self, token_to_idx=None, mask_token="<MASK>", add_unk=True, unk_token="<UNK>"):
         """
-        Args:
-            token_to_idx (dict): a pre-existing map of tokens to indices
-            mask_token (str): the MASK token to add into the Vocabulary; indicates
-                a position that will not be used in updating the model's parameters
-            add_unk (bool): a flag that indicates whether to add the UNK token
-            unk_token (str): the UNK token to add into the Vocabulary
+        Constructor
 
+        :param token_to_idx: a pre-existing map of tokens to indices
+        :param mask_token: the MASK token to add into the Vocabulary; indicates a position that will not be used in updating the model's parameters
+        :param add_unk: a flag that indicates whether to add the UNK token
+        :param unk_token: the UNK token to add into the Vocabulary
         """
 
         if token_to_idx is None:
@@ -53,10 +52,8 @@ class Vocabulary:
     def add_token(self, token):
         """Update mapping dicts based on the token.
 
-        Args:
-            token (str): the item to add into the Vocabulary
-        Returns:
-            index (int): the integer corresponding to the token
+        :param token: The item to add into the Vocabulary
+        :return: The integer corresponding to the token
         """
         if token in self._token_to_idx:
             index = self._token_to_idx[token]
@@ -70,13 +67,12 @@ class Vocabulary:
         """Retrieve the index associated with the token
           or the UNK index if token isn't present.
 
-        Args:
-            token (str): the token to look up
-        Returns:
-            index (int): the index corresponding to the token
         Notes:
             `unk_index` needs to be >=0 (having been added into the Vocabulary)
               for the UNK functionality
+
+        :param token: The token to look up
+        :return: The index corresponding to the token
         """
         if self.unk_index >= 0:
             return self._token_to_idx.get(token, self.unk_index)
@@ -85,12 +81,10 @@ class Vocabulary:
 
     def lookup_index(self, index):
         """Return the token associated with the index
-
-        Args:
-            index (int): the index to look up
-        Returns:
-            token (str): the token corresponding to the index
-        Raises:
+        
+        :param index: The index to look up
+        :return: The token corresponding to the index
+        :raises:
             KeyError: if the index is not in the Vocabulary
         """
         if index not in self._idx_to_token:
@@ -234,13 +228,12 @@ class SequenceVocabulary(Vocabulary):
         """Retrieve the index associated with the token
           or the UNK index if token isn't present.
 
-        Args:
-            token (str): the token to look up
-        Returns:
-            index (int): the index corresponding to the token
         Notes:
             `unk_index` needs to be >=0 (having been added into the Vocabulary)
               for the UNK functionality
+
+        :param token: The token to look up
+        :return: The index corresponding to the token
         """
         if self.unk_index >= 0:
             return self._token_to_idx.get(token, self.unk_index)

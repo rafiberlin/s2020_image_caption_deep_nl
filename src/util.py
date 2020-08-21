@@ -8,7 +8,6 @@ import gensim
 import numpy as np
 import preprocessing as prep
 
-
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
