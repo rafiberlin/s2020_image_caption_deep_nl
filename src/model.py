@@ -168,6 +168,8 @@ class RNNModel(nn.Module):
         seq_len = labels.shape[2]
         image_hidden = self.image_cnn(imgs)
         start_index = labels[0][0][0]
+        end_index = 3
+        mask_index = 0
         device = next(self.parameters()).device
 
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
@@ -205,6 +207,9 @@ class RNNModel(nn.Module):
                 out = torch.cat((out, F.log_softmax(classes, dim=2)), dim=1)
                 first_predicted = torch.topk(out[:, idx], 1)
                 indices = first_predicted.indices
+                #Sets everything to zero if the last index was end or mask
+                indices[torch.nonzero(torch.topk(out[:, idx - 1], 1).indices == end_index)[:, 0]] = mask_index
+                indices[torch.nonzero(torch.topk(out[:, idx - 1], 1).indices == mask_index)[:, 0]] = mask_index
                 predicted_embeds = self.embeddings(indices)
 
         # remove the output of the first hidden state corresponding to the image output...
