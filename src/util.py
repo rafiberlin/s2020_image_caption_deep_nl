@@ -189,7 +189,7 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
             embed_size = hparams["embedding_dim"]
 
         embedding = nn.Embedding.from_pretrained(
-            torch.FloatTensor(glove_embedding[:, :embed_size]))
+            torch.FloatTensor(glove_embedding[:, :embed_size]), padding_idx=padding_idx)
         embedding.weight.requires_grad = hparams["improve_embedding"]
         print("GloVe embedding size:", glove_model.vector_size)
     else:
