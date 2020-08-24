@@ -164,7 +164,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             optimizer.zero_grad()
             # The input for the NLL Loss is batch times number of classes (vocabulary in our case)
             # times sequence length => hence the permutation
-            log_prediction = network(images, in_captions).permute(0, 2, 1)
+            log_prediction = network(images, in_captions).permute(0, 2, 1).contiguous()
             batch_times_caption = log_prediction.shape[0]
             out_captions = out_captions.reshape(batch_times_caption, -1)
             loss = loss_function(log_prediction, out_captions)
@@ -324,7 +324,10 @@ def main():
                                                                                              val_loader, test_loader)
 
     if start_training:
-        loss_function = nn.NLLLoss().to(device)
+        if (hparams["use_padding_idx"]):
+            loss_function = nn.NLLLoss(ignore_index=padding_idx).to(device)
+        else:
+            loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, train_loader,
               device, break_training_loop_idx, val_loader)
 
