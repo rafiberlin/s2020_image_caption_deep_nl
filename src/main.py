@@ -292,7 +292,8 @@ def main():
               torch.cuda.device_count())
 
     prep.set_seed_everywhere(SEED)
-    cleaned_captions, annotation_ids = prep.get_captions(hparams, trainset_name)
+    cleaned_captions, train_annotation_ids = prep.get_captions(hparams, trainset_name)
+    _, val_annotation_ids = prep.get_captions(hparams, valset_name)
     cutoff_for_unknown_words = hparams["cutoff"]
 
     c_vectorizer = vocab.CaptionVectorizer.from_dataframe(
@@ -302,10 +303,10 @@ def main():
     if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
-    annotation_train_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=trainset_name, annotation_ids=annotation_ids)
+    annotation_train_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=trainset_name, annotation_ids=train_annotation_ids)
     #TODO use the other Dataloader...
-    annotation_val_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=valset_name, annotation_ids=annotation_ids)
-    annotation_test_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=testset_name, annotation_ids=annotation_ids)
+    annotation_val_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=valset_name, annotation_ids=val_annotation_ids)
+    #annotation_test_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=testset_name, annotation_ids=train_annotation_ids)
     embedding = util.create_embedding(hparams, c_vectorizer, padding_idx)
     image_train_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, trainset_name)
