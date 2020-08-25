@@ -88,6 +88,28 @@ class Resnet50Module(nn.Module):
             y = self.linear(y)
         return y
 
+class Resnet152Module(nn.Module):
+
+    def __init__(self, embed_size, improve_pretrained=False):
+        super(Resnet152Module, self).__init__()
+        resnet = models.resnet152(pretrained=True)
+        modules = list(resnet.children())[:-1]
+        self.resnet = nn.Sequential(*modules)
+        self.linear = nn.Linear(resnet.fc.in_features, embed_size)
+        self.improve_pretrained = improve_pretrained
+
+    def forward(self, img):
+        if not self.improve_pretrained:
+            with torch.no_grad():
+                y = self.resnet(img)
+            y = y.view(y.size(0), -1)
+            y = self.linear(y)
+        else:
+            y = self.resnet(img)
+            y = y.view(y.size(0), -1)
+            y = self.linear(y)
+        return y
+
 
 class MobileNetModule(nn.Module):
     """
@@ -150,6 +172,10 @@ class RNNModel(nn.Module):
             print("Using resnet50...")
             self.image_cnn = Resnet50Module(
                 self.embedding_dim, self.improve_cnn)
+        elif cnn_model == "resnet152":
+            print("Using resnet152...")
+            self.image_cnn = Resnet152Module(
+                self.embedding_dim, self.improve_cnn)
         else:
             print("Using default cnn...")
             self.image_cnn = ImageToHiddenState(self.embedding_dim)
@@ -164,52 +190,46 @@ class RNNModel(nn.Module):
         self.teacher_forcing = teacher_forcing
     def forward(self, imgs, labels):
         batch_size = imgs.shape[0]
-        number_captions = labels.shape[1]
-        seq_len = labels.shape[2]
+        seq_len = labels.shape[1]
         image_hidden = self.image_cnn(imgs)
-        start_index = labels[0][0][0]
+        start_index = labels[0][0]
         device = next(self.parameters()).device
 
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
-        image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(
-            dim=1).repeat(1, number_captions, 1, 1)
+        image_hidden = image_hidden.unsqueeze(dim=1)
+
+        # if self.teacher_forcing:
+        #     teacher_force = random.random() < 0.5
+        # else:
+        #     teacher_force = False
 
         if self.teacher_forcing:
-            teacher_force = random.random() < 0.5
-        else:
-            teacher_force = False
-
-        if teacher_force:
             embeds = self.embeddings(labels)
 
             # adds the image for each batch sample and caption as the first input of the sequence.
             # its output will be discarded at the return statement, we don't use it in the loss function
-            embeds = torch.cat((image_hidden, embeds), dim=2)
-            embeds = embeds.reshape(
-                (batch_size * number_captions, -1, self.embedding_dim))
+            embeds = torch.cat((image_hidden, embeds), dim=1)
             lstm_out, _ = self.rnn(embeds)
             classes = self.linear(lstm_out)
             out = F.log_softmax(classes, dim=2)
         else:
-            image_hidden = image_hidden.reshape((batch_size * number_captions, -1, self.embedding_dim))
             lstm_out, hidden = self.rnn(image_hidden)
             classes = self.linear(lstm_out)
             out = F.log_softmax(classes, dim=2)
             # first_predicted = torch.topk(out[:, 0], 1)
             # indices = first_predicted.indices
-            indices = torch.ones(batch_size * number_captions, dtype=torch.long).unsqueeze(dim=1).to(device)*start_index
+            indices = torch.ones(batch_size, dtype=torch.long).unsqueeze(dim=1).to(device)*start_index
             predicted_embeds = self.embeddings(indices)
             for idx in range(1, seq_len+1):
                 lstm_out, hidden = self.rnn(predicted_embeds, hidden)
                 classes = self.linear(lstm_out)
                 out = torch.cat((out, F.log_softmax(classes, dim=2)), dim=1)
-                first_predicted = torch.topk(out[:, idx], 1)
-                indices = first_predicted.indices
+                #out = torch.cat((out, classes), dim=1)
+                _, indices = torch.topk(out[:, idx], 1)
                 #Sets everything to zero if the last index was end or mask
-                indices[torch.nonzero(torch.topk(out[:, idx - 1], 1).indices == 3)[:, 0]] = 0
-                indices[torch.nonzero(torch.topk(out[:, idx - 1], 1).indices == 0)[:, 0]] = 0
+                indices[torch.nonzero((torch.topk(out[:, idx - 1], 1).indices == 3), as_tuple=False)[:, 0]] = 0
+                indices[torch.nonzero((torch.topk(out[:, idx - 1], 1).indices == 0), as_tuple=False)[:, 0]] = 0
                 predicted_embeds = self.embeddings(indices)
-                del first_predicted
                 del indices
                 del lstm_out
                 del classes
@@ -231,34 +251,29 @@ class RNNModel(nn.Module):
             self.eval()
             image, vectorized_seq = input_for_prediction
             batch_size = image.shape[0]
-            number_captions = vectorized_seq.shape[1]
-            seq_len = vectorized_seq.shape[2]
+            seq_len = vectorized_seq.shape[1]
             image_hidden = self.image_cnn(image)
-            start_index = vectorized_seq[0][0][0]
+            start_index = vectorized_seq[0][0]
             device = next(self.parameters()).device
-            image_hidden = image_hidden.unsqueeze(dim=1).unsqueeze(
-                dim=1).repeat(1, number_captions, 1, 1)
-            image_hidden = image_hidden.reshape((batch_size * number_captions, -1, self.embedding_dim))
+            image_hidden = image_hidden.unsqueeze(dim=1)
 
             lstm_out, hidden = self.rnn(image_hidden)
             classes = self.linear(lstm_out)
             out = F.log_softmax(classes, dim=2)
-            indices = torch.ones(batch_size * number_captions, dtype=torch.long).unsqueeze(dim=1).to(device)*start_index
+            indices = torch.ones(batch_size, dtype=torch.long).unsqueeze(dim=1).to(device)*start_index
             predicted_embeds = self.embeddings(indices)
 
             for idx in range(1, seq_len):
                 lstm_out, hidden = self.rnn(predicted_embeds, hidden)
                 classes = self.linear(lstm_out)
                 out = torch.cat((out, F.log_softmax(classes, dim=2)), dim=1)
-                first_predicted = torch.topk(out[:, idx], 1)
-                indices = first_predicted.indices
+                _, indices = torch.topk(out[:, idx], 1)
                 predicted_embeds = self.embeddings(indices)
                 idx_found_sequences = indices[indices == end_token_idx]
                 found_sequences = idx_found_sequences.sum()
-                vectorized_seq[0][0][idx] = indices[0]
+                vectorized_seq[0][idx] = indices[0]
                 if found_sequences > 0:
                     break
-                del first_predicted
                 del indices
                 del lstm_out
                 del classes

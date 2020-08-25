@@ -7,7 +7,8 @@ import torchvision.datasets as dset
 import gensim
 import numpy as np
 import preprocessing as prep
-
+from pycocotools.coco import COCO
+from PIL import Image
 
 class CocoDatasetWrapper(Dataset):
 
@@ -147,6 +148,128 @@ class CocoDatasetWrapper(Dataset):
         return image, captions[:self.caption_number], (
             vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
 
+
+class CocoDatasetAnnotation(Dataset):
+    """COCO Custom Dataset compatible with torch.utils.data.DataLoader."""
+
+    def __init__(self, root, json, vectorizer, hparams, annotation_ids=None):
+        """Set the path for images, captions and vocabulary wrapper.
+
+        Args:
+            root: image directory.
+            json: coco annotation file path.
+            vocab: vocabulary wrapper.
+            transform: image transformer.
+        """
+        self.root = root
+        self.coco = COCO(json)
+        if annotation_ids is None:
+            self.ids = list(self.coco.anns.keys())
+        else:
+            self.ids = annotation_ids
+        self.vectorizer = vectorizer
+        transform, _ = CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, "train")
+        self.transform = transform
+    @classmethod
+    def _get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
+        img_size = hparams['image_size']
+        # Most on the example in pytorch have this minimum size before cropping
+        assert img_size >= 256
+        cropsize = hparams["crop_size"]
+        # Most on the example in pytorch have this minimum crop size for random cropping
+        assert cropsize >= 224
+        transform_pipeline = None
+        if dataset_name == "train":
+            shuffle = hparams["shuffle"]
+            if hparams["use_pixel_normalization"]:
+                transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                                         transforms.Resize(
+                                                             (img_size, img_size)),
+                                                         transforms.RandomCrop(
+                                                             cropsize),
+                                                         transforms.RandomHorizontalFlip(),
+                                                         transforms.ToTensor(),
+                                                         transforms.Normalize((0.485, 0.456, 0.406),
+                                                                              # recommended resnet config
+                                                                              (0.229, 0.224, 0.225))
+                                                         ])
+            else:
+                transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                                         transforms.Resize(
+                                                             (img_size, img_size)),
+                                                         transforms.RandomCrop(
+                                                             cropsize),
+                                                         transforms.RandomHorizontalFlip(),
+                                                         transforms.ToTensor()])
+        else:
+            shuffle = False
+            if hparams["use_pixel_normalization"]:
+                transform_pipeline = transforms.Compose([prep.CenteringPad(),
+                                                         transforms.Resize(
+                                                             (img_size, img_size)),
+                                                         transforms.CenterCrop(
+                                                             cropsize),
+                                                         transforms.ToTensor(),
+                                                         transforms.Normalize((0.485, 0.456, 0.406),
+                                                                              # recommended resnet config
+                                                                              (0.229, 0.224, 0.225))
+                                                         ])
+            else:
+                transforms.Compose([prep.CenteringPad(),
+                                    transforms.Resize((img_size, img_size)),
+                                    transforms.CenterCrop(cropsize),
+                                    transforms.ToTensor()
+                                    ])
+        return transform_pipeline, shuffle
+
+    @classmethod
+    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None, annotation_ids=None):
+        """
+        For dataset_name="train", the data will be shuffled, randomly flipped and cropped. For the rest, just a center
+        crop without shuffling
+        :param hparams:
+        :param c_vectorizer:
+        :param dataset_name:
+        :param image_dir:
+        :return:
+        """
+        train_file = hparams[dataset_name]
+        if image_dir == None:
+            image_dir = os.path.join(hparams['root'], train_file)
+        else:
+            image_dir = os.path.join(hparams['root'], image_dir)
+        caption_file_path = prep.get_correct_annotation_file(
+            hparams, dataset_name)
+        print("Image dir:", image_dir)
+        print("Caption file path:", caption_file_path)
+
+        transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(
+            hparams, dataset_name)
+
+        coco_annotation_loader = CocoDatasetAnnotation(image_dir, caption_file_path, c_vectorizer, hparams, annotation_ids=annotation_ids)
+        batch_size = hparams["batch_size"]
+
+        train_loader = torch.utils.data.DataLoader(coco_annotation_loader, batch_size=batch_size, pin_memory=True,
+                                                   shuffle=shuffle)
+        return train_loader
+
+    def __getitem__(self, index):
+        """Returns one data pair (image and caption)."""
+        coco = self.coco
+        ann_id = self.ids[index]
+        caption = coco.anns[ann_id]['caption']
+        img_id = coco.anns[ann_id]['image_id']
+        path = coco.loadImgs(img_id)[0]['file_name']
+
+        image = Image.open(os.path.join(self.root, path)).convert('RGB')
+        image = self.transform(image)
+
+        # Convert caption (string) to word ids.
+        in_caption, out_caption = self.vectorizer.vectorize(caption)
+        return image, in_caption, out_caption
+
+    def __len__(self):
+        return len(self.ids)
 
 def generate_batches(dataset, batch_size, shuffle=True,
                      drop_last=True, device="cpu"):

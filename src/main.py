@@ -92,16 +92,14 @@ def init_model(hparams, network, force_training=False):
 
 def compute_loss_on_validation(val_loader, device, network):
     val_total_loss = torch.zeros(1, device=device)
+    #val_loss_function = nn.CrossEntropyLoss().to(device)
     val_loss_function = nn.NLLLoss().to(device)
     with torch.no_grad():
         for val_idx, val_batch in enumerate(val_loader):
-            val_images, val_in_captions, val_out_captions = util.CocoDatasetWrapper.transform_batch_for_training(
-                val_batch,
-                device)
+            val_images, val_in_captions, val_out_captions = val_batch
             del val_batch
-            val_log_prediction = network(val_images, val_in_captions).permute(0, 2, 1)
-            batch_times_caption = val_log_prediction.shape[0]
-            val_out_captions = val_out_captions.reshape(batch_times_caption, -1)
+            val_log_prediction = network(val_images.to(device), val_in_captions.to(device)).permute(0, 2, 1).contiguous()
+            val_out_captions = val_out_captions.to(device)
             val_total_loss += val_loss_function(val_log_prediction, val_out_captions)
             del val_images
             del val_in_captions
@@ -158,15 +156,14 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     for epoch in tqdm(range(hparams["num_epochs"])):
         total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
-            images, in_captions, out_captions = util.CocoDatasetWrapper.transform_batch_for_training(current_batch,
-                                                                                                     device)
+            images, in_captions, out_captions = current_batch
+
             del current_batch
             optimizer.zero_grad()
             # The input for the NLL Loss is batch times number of classes (vocabulary in our case)
             # times sequence length => hence the permutation
-            log_prediction = network(images, in_captions).permute(0, 2, 1).contiguous()
-            batch_times_caption = log_prediction.shape[0]
-            out_captions = out_captions.reshape(batch_times_caption, -1)
+            log_prediction = network(images.to(device), in_captions.to(device)).permute(0, 2, 1).contiguous()
+            out_captions = out_captions.to(device)
             loss = loss_function(log_prediction, out_captions)
             total_loss += loss
             loss.backward()
@@ -295,7 +292,7 @@ def main():
               torch.cuda.device_count())
 
     prep.set_seed_everywhere(SEED)
-    cleaned_captions = prep.get_captions(hparams, trainset_name)
+    cleaned_captions, annotation_ids = prep.get_captions(hparams, trainset_name)
     cutoff_for_unknown_words = hparams["cutoff"]
 
     c_vectorizer = vocab.CaptionVectorizer.from_dataframe(
@@ -305,13 +302,17 @@ def main():
     if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
+    annotation_train_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=trainset_name, annotation_ids=annotation_ids)
+    #TODO use the other Dataloader...
+    annotation_val_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=valset_name, annotation_ids=annotation_ids)
+    annotation_test_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=testset_name, annotation_ids=annotation_ids)
     embedding = util.create_embedding(hparams, c_vectorizer, padding_idx)
-    train_loader = util.CocoDatasetWrapper.create_dataloader(
+    image_train_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, trainset_name)
     # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    test_loader = util.CocoDatasetWrapper.create_dataloader(
+    image_test_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, testset_name, "train2017")
-    val_loader = util.CocoDatasetWrapper.create_dataloader(
+    image_val_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, valset_name)
 
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
@@ -320,22 +321,20 @@ def main():
                              improve_cnn=hparams["improve_cnn"], teacher_forcing=hparams["teacher_forcing"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
-    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, train_loader,
-                                                                                             val_loader, test_loader)
+    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, annotation_train_loader,
+                                                                                             image_val_loader, image_test_loader)
 
     if start_training:
-        if (hparams["use_padding_idx"]):
-            loss_function = nn.NLLLoss(ignore_index=padding_idx).to(device)
-        else:
-            loss_function = nn.NLLLoss().to(device)
-        train(hparams, loss_function, network, train_loader,
-              device, break_training_loop_idx, val_loader)
+        #loss_function = nn.CrossEntropyLoss().to(device)
+        loss_function = nn.NLLLoss().to(device)
+        train(hparams, loss_function, network, annotation_train_loader,
+              device, break_training_loop_idx, annotation_val_loader)
 
     bleu.BleuScorer.perform_whole_evaluation(
-        hparams, train_loader, network, break_training_loop_idx, "train")
+        hparams, image_train_loader, network, break_training_loop_idx, "train")
     bleu.BleuScorer.perform_whole_evaluation(
-        hparams, val_loader, network, break_val_loop_idx, "val")
-    #model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
+        hparams, image_val_loader, network, break_val_loop_idx, "val")
+    #model.BleuScorer.perform_whole_evaluation(hparams, image_test_loader, network, break_test_loop_idx, "test")
 
 
 if __name__ == '__main__':
