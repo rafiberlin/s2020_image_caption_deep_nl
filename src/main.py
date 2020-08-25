@@ -98,7 +98,7 @@ def compute_loss_on_validation(val_loader, device, network):
         for val_idx, val_batch in enumerate(val_loader):
             val_images, val_in_captions, val_out_captions = val_batch
             del val_batch
-            val_log_prediction = network(val_images.to(device), val_in_captions.to(device)).permute(0, 2, 1).contiguous()
+            val_log_prediction = network(val_images.to(device), val_in_captions.to(device)).permute(0, 2, 1)
             val_out_captions = val_out_captions.to(device)
             val_total_loss += val_loss_function(val_log_prediction, val_out_captions)
             del val_images
@@ -162,7 +162,7 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
             optimizer.zero_grad()
             # The input for the NLL Loss is batch times number of classes (vocabulary in our case)
             # times sequence length => hence the permutation
-            log_prediction = network(images.to(device), in_captions.to(device)).permute(0, 2, 1).contiguous()
+            log_prediction = network(images.to(device), in_captions.to(device)).permute(0, 2, 1)
             out_captions = out_captions.to(device)
             loss = loss_function(log_prediction, out_captions)
             total_loss += loss
