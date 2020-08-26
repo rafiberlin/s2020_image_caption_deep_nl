@@ -250,7 +250,7 @@ class CocoDatasetAnnotation(Dataset):
         batch_size = hparams["batch_size"]
 
         train_loader = torch.utils.data.DataLoader(coco_annotation_loader, batch_size=batch_size, pin_memory=True,
-                                                   shuffle=shuffle, num_workers=2)
+                                                   shuffle=shuffle)
         return train_loader
 
     def __getitem__(self, index):
