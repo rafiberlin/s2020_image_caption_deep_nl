@@ -376,14 +376,16 @@ class RNNModel(nn.Module):
             found = []
             track_best[:, 0] = start_token_idx
             pred = self(*input_for_prediction)
-            first_predicted = torch.topk(pred[0][0], beam_width)
-            track_best[:, 1] = first_predicted.indices
-            last_candidates = {beam_row: (best_idx.item(), first_predicted.values[beam_row].item()) for
+            first_predicted_val,  first_predicted_indices = torch.topk(pred[0][0], beam_width)
+            track_best[:, 1] = first_predicted_indices
+            last_candidates = {beam_row: (best_idx.item(), first_predicted_val[beam_row].item()) for
                                beam_row, best_idx
-                               in enumerate(first_predicted.indices)}
+                               in enumerate(first_predicted_indices)}
             current_candidates = []
             # starts from 2 because track best has been initialized with <start> and word number 1 already
             del pred
+            del first_predicted_val
+            del first_predicted_indices
             for seq_idx in range(2, seq_len):
                 # Start Handle found sequences
                 found_sequences = [beam_row for beam_row in last_candidates.keys() if
@@ -412,14 +414,14 @@ class RNNModel(nn.Module):
                     temp_prediction = self(image, vectorized_seq)
                     current_prediction_idx = seq_idx - 1
                     # exclude mask index
-                    top_temp_predict = torch.topk(temp_prediction[0][current_prediction_idx][mask_idx+1:], beam_width)
+                    top_indices_val, top_indices = torch.topk(temp_prediction[0][current_prediction_idx][mask_idx+1:], beam_width)
                     #all indices must be shifted by one...
-                    top_indices = top_temp_predict.indices.clone() + 1
+                    top_indices = top_indices + 1
                     last_loss = last_candidates[beam_row][1]
                     current_candidates.extend(
-                        (beam_row, best_idx.item(), top_temp_predict.values[pred_row].item() + last_loss) for
+                        (beam_row, best_idx.item(), top_indices_val[pred_row].item() + last_loss) for
                         pred_row, best_idx in enumerate(top_indices))
-                    del top_temp_predict
+                    del top_indices_val
                     del temp_prediction
                     del top_indices
                 current_candidates.sort(key=lambda x: x[2], reverse=True)
