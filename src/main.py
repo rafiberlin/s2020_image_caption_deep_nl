@@ -75,10 +75,11 @@ def init_model(hparams, network, force_training=False):
             print(f"Creation of the directory {model_dir} failed")
     model_path = os.path.join(model_dir, model_name)
     print("Model save path:", model_path)
+    device = next(network.parameters()).device
 
     start_training = True
     if os.path.isfile(model_path) and not force_training:
-        network.load_state_dict(torch.load(model_path))
+        network.load_state_dict(torch.load(model_path, map_location=device))
         start_training = False
         print("Skip Training")
     else:
@@ -88,7 +89,7 @@ def init_model(hparams, network, force_training=False):
             last_model = os.path.join(model_dir, hparams["last_saved_model"])
             if os.path.isfile(last_model):
                 print("Load temporary model: ", last_model)
-                network.load_state_dict(torch.load(last_model))
+                network.load_state_dict(torch.load(last_model, map_location=device))
     return start_training
 
 
