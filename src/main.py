@@ -22,7 +22,7 @@ GLOVE_SCRIPT = "./utils/glove_conv.py"
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1
-
+torch.set_num_threads(10)
 
 def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
     """
@@ -73,10 +73,10 @@ def init_model(hparams, network, force_training=False):
             print(f"Creation of the directory {model_dir} failed")
     model_path = os.path.join(model_dir, model_name)
     print("Model save path:", model_path)
-
+    device = next(network.parameters()).device
     start_training = True
     if os.path.isfile(model_path) and not force_training:
-        network.load_state_dict(torch.load(model_path))
+        network.load_state_dict(torch.load(model_path, map_location=device))
         start_training = False
         print("Skip Training")
     else:
@@ -86,7 +86,7 @@ def init_model(hparams, network, force_training=False):
             last_model = os.path.join(model_dir, hparams["last_saved_model"])
             if os.path.isfile(last_model):
                 print("Load temporary model: ", last_model)
-                network.load_state_dict(torch.load(last_model))
+                network.load_state_dict(torch.load(last_model, map_location=device))
     return start_training
 
 
@@ -332,10 +332,10 @@ def main():
               device, break_training_loop_idx, annotation_val_loader)
 
     bleu.BleuScorer.perform_whole_evaluation(
-        hparams, image_train_loader, network, break_training_loop_idx, "train")
+          hparams, image_train_loader, network, break_training_loop_idx, "train")
     bleu.BleuScorer.perform_whole_evaluation(
-        hparams, image_val_loader, network, break_val_loop_idx, "val")
-    #model.BleuScorer.perform_whole_evaluation(hparams, image_test_loader, network, break_test_loop_idx, "test")
+         hparams, image_val_loader, network, break_val_loop_idx, "val")
+    bleu.BleuScorer.perform_whole_evaluation(hparams, image_test_loader, network, break_test_loop_idx, "test")
 
 
 if __name__ == '__main__':

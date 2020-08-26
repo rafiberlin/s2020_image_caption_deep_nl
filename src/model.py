@@ -364,13 +364,13 @@ class RNNModel(nn.Module):
         """
         with torch.no_grad():
             self.eval()
-            seq_len = input_for_prediction[1].shape[2]
+            seq_len = input_for_prediction[1].shape[1]
             device = next(self.parameters()).device
             # TODO set it as parameter, used to stop the search
             end_token_id = 3
             mask_idx = 0
             image, vectorized_seq = input_for_prediction
-            start_token_idx = vectorized_seq[0, 0, 0]
+            start_token_idx = vectorized_seq[0, 0]
 
             track_best = torch.zeros((beam_width, seq_len), dtype=torch.long).to(device)
             found = []
@@ -407,7 +407,7 @@ class RNNModel(nn.Module):
                     del update
                 for beam_row in range(beam_width):
                     # reuse the vectorized sequence and updates indices at each pas to save memory
-                    vectorized_seq[0][0][:seq_idx] = track_best[beam_row, : seq_idx]
+                    vectorized_seq[0][:seq_idx] = track_best[beam_row, : seq_idx]
                     # detach because we don't need gradienst...
                     temp_prediction = self(image, vectorized_seq)
                     current_prediction_idx = seq_idx - 1

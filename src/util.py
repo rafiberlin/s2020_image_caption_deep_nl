@@ -250,7 +250,7 @@ class CocoDatasetAnnotation(Dataset):
         batch_size = hparams["batch_size"]
 
         train_loader = torch.utils.data.DataLoader(coco_annotation_loader, batch_size=batch_size, pin_memory=True,
-                                                   shuffle=shuffle)
+                                                   shuffle=shuffle, num_workers=2)
         return train_loader
 
     def __getitem__(self, index):
@@ -299,20 +299,25 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
             word: glove_model.vocab[word].index for word in glove_model.vocab.keys()}
         for word in c_vectorizer.get_vocab()._token_to_idx.keys():
             i = c_vectorizer.get_vocab().lookup_token(word)
-            if word in token2idx:
-                glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
+            if i != padding_idx:
+                if word in token2idx:
+                    glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
+                else:
+                    # From NLP with pytorch, it should be better to init the unknown tokens
+                    embedding_i = torch.ones(1, glove_model.vector_size)
+                    torch.nn.init.xavier_uniform_(embedding_i)
+                    glove_embedding[i, :] = embedding_i
             else:
-                # From NLP with pytorch, it should be better to init the unknown tokens
-                embedding_i = torch.ones(1, glove_model.vector_size)
-                torch.nn.init.xavier_uniform_(embedding_i)
+                embedding_i = torch.zeros(1, glove_model.vector_size)
                 glove_embedding[i, :] = embedding_i
-
         embed_size = glove_model.vector_size
         if hparams["embedding_dim"] < embed_size:
             embed_size = hparams["embedding_dim"]
 
         embedding = nn.Embedding.from_pretrained(
-            torch.FloatTensor(glove_embedding[:, :embed_size]), padding_idx=padding_idx)
+            torch.FloatTensor(glove_embedding[:, :embed_size]))
+        # embedding = nn.Embedding.from_pretrained(
+        #     torch.FloatTensor(glove_embedding[:, :embed_size]))
         embedding.weight.requires_grad = hparams["improve_embedding"]
         print("GloVe embedding size:", glove_model.vector_size)
     else:
