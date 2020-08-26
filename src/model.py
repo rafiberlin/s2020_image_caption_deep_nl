@@ -18,6 +18,7 @@ class VGG16Module(nn.Module):
         self.vgg16 = models.vgg16(pretrained=True)
         self.linear = nn.Linear(4096, output_dim)
         self.improve_pretrained = improve_pretrained
+
         # Remove last four layers of vgg16
         self.vgg16.classifier = nn.Sequential(
             *list(self.vgg16.classifier.children())[:-4])
@@ -36,7 +37,7 @@ class VGG16Module(nn.Module):
 class Resnet50Module(nn.Module):
 
     def __init__(self, embed_size, improve_pretrained=False):
-        super(Resnet50Module, self).__init__()
+        super().__init__()
         resnet = models.resnet50(pretrained=True)
         modules = list(resnet.children())[:-1]
         self.resnet = nn.Sequential(*modules)
@@ -65,6 +66,11 @@ class MobileNetModule(nn.Module):
     """
 
     def __init__(self, output_dim, improve_pretrained=False):
+        """
+        :param output_dim: Output dimension of the linear layer
+        :param improve_pretrained: Whether or not to improve the pretrained mobilenet model
+        """
+
         super().__init__()
         self.mobile = models.mobilenet_v2(pretrained=True)
         self.linear = nn.Linear(1000, output_dim)
@@ -93,7 +99,7 @@ class RNNModel(nn.Module):
                  improve_cnn=False
                  ):
 
-        super(RNNModel, self).__init__()
+        super().__init__()
         self.embeddings = pretrained_embeddings
         self.embedding_dim = self.embeddings.embedding_dim
         self.vocabulary_size = self.embeddings.num_embeddings
@@ -103,6 +109,7 @@ class RNNModel(nn.Module):
         self.improve_cnn = improve_cnn
         self.n_classes = self.vocabulary_size
         self.drop_out_prob = drop_out_prob
+
         if cnn_model == "vgg16":
             print("Using vgg16...")
             self.image_cnn = VGG16Module(self.embedding_dim, self.improve_cnn)
@@ -125,7 +132,6 @@ class RNNModel(nn.Module):
             self.rnn = nn.LSTM(self.embedding_dim, self.hidden_dim, self.rnn_layers, batch_first=True,
                                dropout=drop_out_prob)
         self.linear = nn.Linear(self.hidden_dim, self.n_classes)
-        # self.drop_layer = nn.Dropout(p=drop_out_prob)
 
     def forward(self, imgs, labels):
         batch_size = imgs.shape[0]
@@ -137,22 +143,22 @@ class RNNModel(nn.Module):
             dim=1).repeat(1, number_captions, 1, 1)
         embeds = self.embeddings(labels)
 
-        # adds the image for each batch sample and caption as the first input of the sequence.
-        # its output will be discarded at the return statement, we don't use it in the loss function
+        # Adds the image for each batch sample and caption as the first input of the sequence.
+        # Its output will be discarded in the return statement, we don't use it in the loss function
         embeds = torch.cat((image_hidden, embeds), dim=2)
         embeds = embeds.reshape(
             (batch_size * number_captions, -1, self.embedding_dim))
         lstm_out, _ = self.rnn(embeds)
-
         classes = self.linear(lstm_out)
 
+        # Remove the output of the first hidden state corresponding to the image output
         out = F.log_softmax(classes, dim=2)
-        # remove the output of the first hidden state corresponding to the image output...
         return out[:, 1:, :]
 
     def predict_greedy(self, input_for_prediction, end_token_idx=3):
         """
         Generate captions by selecting the highest probability word at each step
+
         :param input_for_prediction: a tuple containing the image and an empty sequence except
         for the <BEGIN> token
         :param end_token_idx: id of the vectorized <END> token
@@ -178,8 +184,8 @@ class RNNModel(nn.Module):
         """
         Generate captions by selecting the best sequence out of the defined beam width.
         The sequence length is set to 30, to enable faster computation.
-        :param input_for_prediction: a tuple containing the image and an empty sequence except
-        for the <BEGIN> token
+
+        :param input_for_prediction: a tuple containing the image and an empty sequence except for the <BEGIN> token
         :param beam_width: Number of generated sequences to consider.
         :return: a vectorized sequence to be decoded
         """
@@ -257,8 +263,8 @@ class RNNModel(nn.Module):
         """
         Does the regular beam search on full sequence but stops at the first ended sequence.
         No memory problems.
-        :param input_for_prediction: a tuple containing the image and an empty sequence except
-        for the <BEGIN> token
+
+        :param input_for_prediction: a tuple containing the image and an empty sequence except for the <BEGIN> token
         :param beam_width: Number of generated sequences to consider.
         :return: a vectorized sequence to be decoded
         """
@@ -324,6 +330,7 @@ class RNNModel(nn.Module):
                     del top_indices
                 current_candidates.sort(key=lambda x: x[2], reverse=True)
                 current_seq_length = seq_idx + 1
+
                 # Update the vector with the best candidates and keep track of them
                 top_candidates = current_candidates[:beam_width]
                 current_candidates.clear()
@@ -350,10 +357,9 @@ class RNNModel(nn.Module):
     def predict_greedy_sample(self, input_for_prediction, end_token_idx=3):
         """
         Only for dev purposes, allow us to get some outputs.
-        :param input_for_prediction: a tuple containing the image and an empty sequence except
-        for the <BEGIN> token
+
+        :param input_for_prediction: a tuple containing the image and an empty sequence except for the <BEGIN> token
         :return: a vectorized sequence to be decoded
-        :return:
         """
         with torch.no_grad():
             self.eval()

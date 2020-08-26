@@ -22,7 +22,7 @@ class BleuScorer:
         :param train_loader: Coco Dataset dataloader to access examples
         :param idx_break: for debugging purpose only, do not use
         :param prefix: prefix name for saved result files
-        :return:
+        :return: Pandas Dataframe of scores
         """
         # NEVER do [{}]* 5!!!!
         # https://stackoverflow.com/questions/15835268/create-a-list-of-empty-dictionaries
@@ -40,8 +40,8 @@ class BleuScorer:
             imgs, \
             annotations, _ = current_batch
             for sample_idx, image_id in enumerate(annotations[0]["image_id"]):
-                # create the list of all 4 captions out of 5. Because range(5) is ordered, the result is
-                # deterministic...
+                # Create the list of all 4 captions out of 5.
+                # Because range(5) is ordered, the result is deterministic.
                 for c in list(combinations(range(caption_number), caption_number - 1)):
                     for hypothesis_idx in range(caption_number):
                         if hypothesis_idx not in c:
@@ -58,7 +58,6 @@ class BleuScorer:
                                     v.decode(v.vectorize(annotations[annotation_idx]["caption"][sample_idx])[0]) for
                                     annotation_idx in list(c)]
             if idx == idx_break:
-                # useful for debugging
                 break
 
         scores = []
@@ -79,17 +78,18 @@ class BleuScorer:
     @classmethod
     def evaluate(cls, hparams, train_loader, network_model, end_token_idx=3, idx_break=-1, prefix="train"):
         """
-        Performs the BLEU 4 score for the trained model.
+        Performs the BLEU 4 score for the trained model
+
         :param hparams: all project parameters
         :param train_loader: Coco Dataset dataloader to access examples
         :param network_model: The trained model used for prediction
         :param end_token_idx: The index of the <END> token, as stored in the vocabulary vectorizer
         :param idx_break: for debugging purpose only, do not use
         :param prefix: prefix name for saved result files
-        :return:
+        :return: Pandas dataframe of scores
         """
 
-        # there is no other method to retrieve the current device on a model...
+        # There is no other method to retrieve the current device on a model.
         device = next(network_model.parameters()).device
         hypothesis = {}
         references = {}
@@ -142,8 +142,8 @@ class BleuScorer:
                     print("gold captions", references[_id])
 
             if idx == idx_break:
-                # useful for debugging
                 break
+
         score = cls.calc_scores(references, hypothesis)
         pd_score = pd.DataFrame([score])
 
@@ -164,7 +164,8 @@ class BleuScorer:
     def calc_scores(cls, ref, hypo):
         """
         Code from https://www.programcreek.com/python/example/103421/pycocoevalcap.bleu.bleu.Bleu
-        which uses the original Coco Eval API in python 3. It performs the BLEU 4 score
+        which uses the original Coco Eval API in python 3. It performs the BLEU 4 score.
+
         :param ref: dictionary of reference sentences (id, sentence)
         :param hypo: dictionary of hypothesis sentences (id, sentence)
         :return: score, dictionary of BLEU scores
@@ -186,12 +187,12 @@ class BleuScorer:
     def perform_whole_evaluation(cls, hparams, loader, network, break_training_loop_idx=3, prefix="train"):
         """
         Performs and print the model evaluation
+
         :param hparams: all project parameters
         :param loader: Coco Dataset dataloader to access examples
         :param network: The trained model used for prediction
         :param break_training_loop_idx: for debugging purpose only, do not use
         :param prefix: prefix name for saved result files
-        :return:
         """
 
         print("##########################################################")

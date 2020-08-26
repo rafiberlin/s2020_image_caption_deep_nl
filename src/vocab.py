@@ -13,13 +13,12 @@ class Vocabulary:
 
     def __init__(self, token_to_idx=None, mask_token="<MASK>", add_unk=True, unk_token="<UNK>"):
         """
-        Args:
-            token_to_idx (dict): a pre-existing map of tokens to indices
-            mask_token (str): the MASK token to add into the Vocabulary; indicates
-                a position that will not be used in updating the model's parameters
-            add_unk (bool): a flag that indicates whether to add the UNK token
-            unk_token (str): the UNK token to add into the Vocabulary
+        Constructor
 
+        :param token_to_idx: a pre-existing map of tokens to indices
+        :param mask_token: the MASK token to add into the Vocabulary; indicates a position that will not be used in updating the model's parameters
+        :param add_unk: a flag that indicates whether to add the UNK token
+        :param unk_token: the UNK token to add into the Vocabulary
         """
 
         if token_to_idx is None:
@@ -53,10 +52,8 @@ class Vocabulary:
     def add_token(self, token):
         """Update mapping dicts based on the token.
 
-        Args:
-            token (str): the item to add into the Vocabulary
-        Returns:
-            index (int): the integer corresponding to the token
+        :param token: The item to add into the Vocabulary
+        :return: The integer corresponding to the token
         """
         if token in self._token_to_idx:
             index = self._token_to_idx[token]
@@ -70,13 +67,12 @@ class Vocabulary:
         """Retrieve the index associated with the token
           or the UNK index if token isn't present.
 
-        Args:
-            token (str): the token to look up
-        Returns:
-            index (int): the index corresponding to the token
         Notes:
             `unk_index` needs to be >=0 (having been added into the Vocabulary)
               for the UNK functionality
+
+        :param token: The token to look up
+        :return: The index corresponding to the token
         """
         if self.unk_index >= 0:
             return self._token_to_idx.get(token, self.unk_index)
@@ -85,12 +81,10 @@ class Vocabulary:
 
     def lookup_index(self, index):
         """Return the token associated with the index
-
-        Args:
-            index (int): the index to look up
-        Returns:
-            token (str): the token corresponding to the index
-        Raises:
+        
+        :param index: The index to look up
+        :return: The token corresponding to the index
+        :raises:
             KeyError: if the index is not in the Vocabulary
         """
         if index not in self._idx_to_token:
@@ -120,8 +114,8 @@ class CaptionVectorizer:
     def decode(self, vectorized_input):
         """
         Pytorch array with list of indices
-        :param vectorized_input:
-        :return:
+        :param vectorized_input: Input vector
+        :return: Caption converted to str
         """
         return " ".join([self.caption_vocab._idx_to_token[i.item()] for i in vectorized_input
                          if i.item() not in
@@ -131,11 +125,11 @@ class CaptionVectorizer:
 
     def vectorize(self, title):
         """
-        Args:
-            title (str): the string of words separated by a space
-            vector_length (int): an argument for forcing the length of index vector
-        Returns:
-            the vetorized title (numpy.array)
+        Converts a caption string into a vector
+
+        :param title: the string of words separated by a space
+        :param vector_length: an argument for forcing the length of index vector
+        :return: the vetorized title (numpy.array)
         """
         indices = [self.caption_vocab.begin_seq_index]
         indices.extend(self.caption_vocab.lookup_token(token)
@@ -163,7 +157,7 @@ class CaptionVectorizer:
     def create_starting_sequence(self):
         """
         Creates pytorch array with a starting sequence token
-        :return:
+        :return: Empty vector with start token
         """
         starting_token = torch.ones(
             self.max_sequence_length - 1, dtype=torch.long) * self.caption_vocab.mask_index
@@ -174,6 +168,7 @@ class CaptionVectorizer:
     def from_dataframe(cls, captions, cutoff=5, exclude_punctuation=False):
         """
         Creates a vectorizer object from a dataframe
+
         :param captions: captions in a dataframe
         :param cutoff: the limit to consider a word as known
         :param exclude_punctuation: boolean to decide whether the punctuation should be included or not
@@ -209,7 +204,7 @@ class SequenceVocabulary(Vocabulary):
                  mask_token="<MASK>", begin_seq_token="<BEGIN>",
                  end_seq_token="<END>"):
 
-        super(SequenceVocabulary, self).__init__(token_to_idx)
+        super().__init__(token_to_idx)
 
         self._mask_token = mask_token
         self._unk_token = unk_token
@@ -233,13 +228,12 @@ class SequenceVocabulary(Vocabulary):
         """Retrieve the index associated with the token
           or the UNK index if token isn't present.
 
-        Args:
-            token (str): the token to look up
-        Returns:
-            index (int): the index corresponding to the token
         Notes:
             `unk_index` needs to be >=0 (having been added into the Vocabulary)
               for the UNK functionality
+
+        :param token: The token to look up
+        :return: The index corresponding to the token
         """
         if self.unk_index >= 0:
             return self._token_to_idx.get(token, self.unk_index)

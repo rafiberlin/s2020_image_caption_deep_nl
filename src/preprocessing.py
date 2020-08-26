@@ -50,8 +50,10 @@ def read_json_config(file_path):
 def preprocess_text(text, remove_punctuation=True):
     """
     Removes punctuation and add lower case
-    :param text:
-    :return:
+
+    :param text: Text to preprocess
+    :param remove_punctuation: Only return alphabetical words
+    :return: 
     """
     text = text.lower()
     text = word_tokenize(text)
@@ -61,7 +63,7 @@ def preprocess_text(text, remove_punctuation=True):
     return text
 
 
-class CenteringPad(object):
+class CenteringPad:
     """
     Pad class to deal with varying sizes. Strategy for all images which does not have the max resolution of the
     data set 640 by 640, we center the image and pad. Target resolution needs to be square.
@@ -79,11 +81,10 @@ class CenteringPad(object):
 
     def __call__(self, img):
         """
-        Args:
-            img (PIL Image): Image to be padded.
+        Returns the padded image
 
-        Returns:
-            PIL Image: Padded image.
+        :param img: Image to be padded
+        :return: Padded image
         """
         self.padding = self.get_padding(img)
         return pad(img, self.padding, self.fill, self.padding_mode)
@@ -91,8 +92,9 @@ class CenteringPad(object):
     def get_padding(self, image):
         """
         Given the image, automatically calculates the padding needed on each border.
-        :param image:
-        :return:
+
+        :param image: image to pad
+        :return: Padded image
         """
         if image.size == self.target_resolution:
             return 0
@@ -118,10 +120,11 @@ class CenteringPad(object):
 def get_current_images_id(hparams, dataset_name):
     """
     Get the list of image ids corresponding to break_training_loop_percentage in hparams.
-    It helps loading less captions, embeddings in create_list_of_captions_and_clean() , hence getting more samples per batches...
-    :param hparams:
-    :param dataset_name:
-    :return:
+    It helps loading less captions, embeddings in create_list_of_captions_and_clean() , hence getting more samples per batches.
+
+    :param hparams: Hyperparameters
+    :param dataset_name: Dataset name to get images from
+    :return: List of image indices
     """
 
     train_file = hparams[dataset_name]
@@ -157,9 +160,11 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
     pick the correct file name...
     If break_training_loop_percentage = 100, it will pick cleaned_captions_train2017.json
     If break_training_loop_percentage = 10, it will try to pick 10_cleaned_captions_train2017.json
-    :param hparams:
-    :param name:
-    :return:
+
+    :param hparams: Hyperparameters
+    :param name: Train/Test/Val
+    :param remove_punctuation: Only keep alphabetical words
+    :return: Path to the annotation file
     """
     percentage = hparams["break_training_loop_percentage"]
     caption_dir = os.path.join(hparams['root'], "annotations")
@@ -210,9 +215,10 @@ def get_correct_annotation_file(hparams, name, remove_punctuation=True):
 def get_captions(hparams, name):
     """
     Only extracts the needed captions set in caption_number. Might reduce memory footprint for embeddings
-    :param hparams:
-    :param name:
-    :return:
+
+    :param hparams: Hyperparameters
+    :param name: Train/Test/Val
+    :return: List of captions for the given dataset name
     """
 
     transform_pipeline, shuffle = util.CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, name)
@@ -238,9 +244,12 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
     Given a caption json file for the COCO dataset, lower case the labels
     and add space before and after punctuation, Preprocessing function from
     "Natural Language with Pytorch", chapter 3.
-    :param file_path:
-    :param save_file_path:
-    :return:
+
+    :param hparams: Hyperparameters
+    :param name: Name of the dataset (Train/Test/Val)
+    :param img_list: Filter captions for certain images
+    :param remove_punctuation: Removes punctuation
+    :return: List of cleaned captions
     """
 
     punct = ""
@@ -291,10 +300,10 @@ def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punct
 def clean_caption_annotations(hparams, annotation_list, remove_punctuation=True):
     """
     Creates the cleaned caption annotations
-    :param hparams:
-    :param annotation_list:
-    :param remove_punctuation:
-    :return:
+
+    :param hparams: Hyperparameters
+    :param annotation_list: List of annotation names
+    :param remove_punctuation: Removes punctuation
     """
     for annotation in annotation_list:
         create_list_of_captions_and_clean(
@@ -304,6 +313,7 @@ def clean_caption_annotations(hparams, annotation_list, remove_punctuation=True)
 def get_captions_path(hparams, dataset):
     """
     Returns a full path to an annotation
+
     :param hparams: Project parameters
     :param dataset: dataset name (train2017, test2017, val2017)
     :return: Returns a full path to an annotation
@@ -314,6 +324,7 @@ def get_captions_path(hparams, dataset):
 def get_cleaned_captions_path(hparams, dataset):
     """
     Returns a full path to a cleaned annotation
+
     :param hparams: Project parameters
     :param dataset: dataset name (train2017, test2017, val2017)
     :return: Returns a full path to a cleaned annotation
@@ -326,12 +337,12 @@ def save_coco(file, info, licenses, images, annotations):
     """
     Downloaded from github.com/akarazniewicz/cocosplit.git@master and modified to just handle annotations
     Function helping to create new data split from an original COCO Dataset
-    :param file:
-    :param info:
-    :param licenses:
-    :param images:
-    :param annotations:
-    :return:
+
+    :param file: File to write to
+    :param info: Info
+    :param licenses: Licenses
+    :param images: Images
+    :param annotations: Annotations
     """
 
     with open(file, 'wt', encoding='UTF-8') as coco:
@@ -343,6 +354,7 @@ def filter_annotations(annotations, images):
     """
     Downloaded from github.com/akarazniewicz/cocosplit.git@master and modified to just handle annotations
     Function helping to create new data split from an original COCO Dataset
+
     :param annotations:
     :param images:
     :return:
@@ -396,6 +408,7 @@ def reduce_cocosplit(args):
     Downloaded from github.com/akarazniewicz/cocosplit.git@master
     Function used to reduce pre-cleaned COCO annotation to keep only a certain percentage of
     COCO examples with annotations.
+
     :param args:
     :return:
     """
@@ -431,8 +444,8 @@ def set_seed_everywhere(seed):
     """
     From NLP with Pytorch book. Apply the same seed number on all framework in use to
     make results consistents over several runs
-    :param seed:
-    :return:
+
+    :param seed: Global seed to set
     """
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -444,9 +457,9 @@ def download_unpack_zip(zipurl, storage_directory):
     """
     From https://svaderia.github.io/articles/downloading-and-unzipping-a-zipfile/
     Download a file from a URL and store it under desired diretory
+
     :param zipurl: The url of the file
-    :param storage_directory:
-    :return:
+    :param storage_directory: Directory to save zip to
     """
     print("Download:", zipurl)
     zipresp = urlopen(zipurl)
@@ -471,10 +484,10 @@ def reduce_annotation_size(annotation_directory="./data/annotations", cleaned_fi
     """
     Function used to reduce pre-cleaned COCO annotation to keep only a certain percentage of
     COCO examples with annotations.
+
     :param annotation_directory: Directory where annotations are stored
     :param cleaned_file_prefix: prefix of the cleaned annotations
     :param final_percentage: final proportion of COCO examples to be kept
-    :return:
     """
     file_suffixes = ["train2017.json", "val2017.json", "test2017.json"]
 
@@ -486,24 +499,3 @@ def reduce_annotation_size(annotation_directory="./data/annotations", cleaned_fi
         reduce_cocosplit(arg_for_split)
         print("Annotations created:",
               f'{annotation_directory}/{final_percentage}_{cleaned_file_prefix + fs}')
-
-
-if __name__ == '__main__':
-    hparams = read_json_config("./hparams.json")
-
-    # UNCOMMENT this part to create the custom dataset splits stored in Git
-    # Because the original test labels are missing in the Coco dataset (remember, it was meant as a competition)
-    # we need to split the traning dataset into training and testing 80% / 20%
-
-    # arg_for_split = Namespace(annotations='./data/annotations/cleaned_captions_train2017.json', having_annotations=False, split=0.8,
-    #         test='./data/annotations/cleaned_captions_test2017.json', train='./data/annotations/cleaned_captions_train2017.json', percentage=100)
-    # create_cocosplit(arg_for_split)
-    # clean_caption_annotations(hparams, ["train", "val"],  False)
-    # percentage_list = [1, 2, 5, 6, 10]
-    # for p in percentage_list:
-    #     reduce_annotation_size("./data/annotations", "cleaned_captions_punct_", p)
-    #     reduce_annotation_size("./data/annotations", "cleaned_captions_", 2)
-
-    download_unpack_zip(hparams["img_train_url"], hparams["root"])
-    download_unpack_zip(hparams["img_val_url"], hparams["root"])
-    download_unpack_zip(hparams["glove_url"], hparams["root"])
