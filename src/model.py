@@ -442,9 +442,9 @@ class RNNModel(nn.Module):
         # Either something was found or we take the top candidate sitting on the first row...
         if found:
             found.sort(key=lambda x: x[0], reverse=True)
-            sentence = found[0][1].unsqueeze(0).unsqueeze(0)
+            sentence = found[0][1].unsqueeze(0)
         else:
-            sentence = track_best[0].unsqueeze(0).unsqueeze(0)
+            sentence = track_best[0].unsqueeze(0)
         return sentence
 
     def predict_greedy_sample(self, input_for_prediction, end_token_idx=3):
