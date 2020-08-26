@@ -64,7 +64,8 @@ If a different version of the dataset is supposed to be used, adjust `train`, `v
 "test": "test2017",
 ```
 
-Disable `use_pixel_normalization` afterwards, as this works with the 2017 dataset only.
+Be careful though as older version of the dataset might have missing pictures, which were removed later but without 
+a proper update of the corresponding annotation files.
 
 ## Training and testing
 
@@ -86,6 +87,9 @@ Please download the saved model from [google drive](https://drive.google.com/fil
 And unzip it under: `/model_storage/lp10_img370_cs320_resnet50_gru_l3_hdim512_emb300_lr0.001_wd0_epo75_bat32_do0_cut2_can5_with_norm_ie_s.pt`
 
 Please do not change the name of the model!
+
+The Jupyter notebook is preconfigured to run the model to download. The results of the model evaluation and some 
+predictions have been processed and saved in order to quickly get an impression of the trained model.
 
 ## Some parameters in hparams.json explained
 
