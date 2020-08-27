@@ -104,6 +104,9 @@ predictions have been processed and saved in order to quickly get an impression 
 We were able to train a model which performed better than the human average on the test set, even though we use a 
 narrower beam width than [Vinyal et al.](https://arxiv.org/pdf/1411.4555.pdf)
 
+The detailed results and the predictions for all dataset splits are stored under `/model_storage`
+
+
 |                                                                |                  | BLEU-4 Scores |                  |
 |----------------------------------------------------------------|------------------|---------------|------------------|
 |                                                                | Training         | Validation    | Test             |
