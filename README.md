@@ -32,7 +32,10 @@ python3 utils/glove_conv.py
 pip3 install -r requirements.txt
 ```
 
-Requirements have been automatically generated using [pigar](https://github.com/damnever/pigar).
+Requirements have been automatically generated using [pigar](https://github.com/damnever/pigar). 
+This tool does not always detect all dependencies correctly and you might need to install some packages
+manually (for example, packages like cython which are not used in the project but is used to correctly install
+some dependencies). If you run into an error check the warnings and install the missing packages accordingly.
 
 Please note that you will need to install the pytorch framework that matches your Nvidia GPU Drivers manually.
 

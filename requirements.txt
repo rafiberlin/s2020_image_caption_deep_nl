@@ -43,3 +43,4 @@ scikit_learn == 0.22.2.post1
 
 # sose2020_image_caption_deep_learning/src/preprocessing.py: 12
 tqdm == 4.45.0
+seaborn == 0.10.1
