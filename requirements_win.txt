@@ -27,3 +27,5 @@ scikit-learn == 0.22.1
 
 git+git://github.com/philferriere/cocoapi.git@master#egg=pycocotools&subdirectory=PythonAPI
 git+https://github.com/salaniz/pycocoevalcap
+
+seaborn == 0.10.1

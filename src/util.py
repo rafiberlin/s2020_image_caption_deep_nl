@@ -7,12 +7,15 @@ import torchvision.datasets as dset
 import gensim
 import numpy as np
 import preprocessing as prep
+from pycocotools.coco import COCO
+from PIL import Image
+
 
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
         """
-        Constructor
+        Constructor. Only to be used during evaluation (for valivation or testing purposes).
 
         :param cocodaset: Pytorch COCO dataloader
         :param vectorizer: vectorized vocabulary
@@ -25,7 +28,7 @@ class CocoDatasetWrapper(Dataset):
         self.caption_number = caption_number
 
     @classmethod
-    def _get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
+    def get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
         """
         Returns a transformation pipeline for dataloader based on the dataset split
         and whether the dataset should be shuffled or not
@@ -41,7 +44,7 @@ class CocoDatasetWrapper(Dataset):
         cropsize = hparams["crop_size"]
         # Most on the example in pytorch have this minimum crop size for random cropping
         assert cropsize >= 224
-
+        transform_pipeline = None
         if dataset_name == "train":
             shuffle = hparams["shuffle"]
             if hparams["use_pixel_normalization"]:
@@ -107,7 +110,7 @@ class CocoDatasetWrapper(Dataset):
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
 
-        transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(
+        transform_pipeline, shuffle = cls.get_transform_pipeline_and_shuffle(
             hparams, dataset_name)
 
         coco_train_set = dset.CocoDetection(root=image_dir,
@@ -166,6 +169,96 @@ class CocoDatasetWrapper(Dataset):
             vectorized_captions_in[:self.caption_number], vectorized_captions_out[:self.caption_number])
 
 
+class CocoDatasetAnnotation(Dataset):
+
+    def __init__(self, root, json, vectorizer, hparams, annotation_ids=None):
+        """
+        Constructor. Only to be used during training.
+
+        :param root: image directory
+        :param json: coco annotation file path.
+        :param vectorizer:
+        :param hparams: general project parameters
+        :param annotation_ids: list of annotation ids to be loaded by the dataloader
+        """
+
+        self.root = root
+        self.coco = COCO(json)
+        if annotation_ids is None:
+            self.ids = list(self.coco.anns.keys())
+        else:
+            self.ids = annotation_ids
+        self.vectorizer = vectorizer
+        transform, _ = CocoDatasetWrapper.get_transform_pipeline_and_shuffle(hparams, "train")
+        self.transform = transform
+
+    @classmethod
+    def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None, annotation_ids=None):
+        """
+        For dataset_name="train", the data will be shuffled, randomly flipped and cropped. For the rest, just a center
+        crop without shuffling
+        :param hparams:
+        :param c_vectorizer:
+        :param dataset_name:
+        :param image_dir:
+        :return:
+        """
+        train_file = hparams[dataset_name]
+        if image_dir == None:
+            image_dir = os.path.join(hparams['root'], train_file)
+        else:
+            image_dir = os.path.join(hparams['root'], image_dir)
+        caption_file_path = prep.get_correct_annotation_file(
+            hparams, dataset_name)
+        print("Image dir:", image_dir)
+        print("Caption file path:", caption_file_path)
+
+        _, shuffle = CocoDatasetWrapper.get_transform_pipeline_and_shuffle(
+            hparams, dataset_name)
+
+        coco_annotation_loader = CocoDatasetAnnotation(image_dir, caption_file_path, c_vectorizer, hparams,
+                                                       annotation_ids=annotation_ids)
+        batch_size = hparams["batch_size"]
+
+        train_loader = torch.utils.data.DataLoader(coco_annotation_loader, batch_size=batch_size, pin_memory=True,
+                                                   shuffle=shuffle)
+        return train_loader
+
+    def __getitem__(self, index):
+        """Returns one data pair (image and caption)."""
+        coco = self.coco
+        ann_id = self.ids[index]
+        caption = coco.anns[ann_id]['caption']
+        img_id = coco.anns[ann_id]['image_id']
+        path = coco.loadImgs(img_id)[0]['file_name']
+
+        image = Image.open(os.path.join(self.root, path)).convert('RGB')
+        image = self.transform(image)
+
+        # Convert caption (string) to word ids.
+        in_caption, out_caption = self.vectorizer.vectorize(caption)
+        return image, in_caption, out_caption
+
+    def __len__(self):
+        return len(self.ids)
+
+
+def generate_batches(dataset, batch_size, shuffle=True,
+                     drop_last=True, device="cpu"):
+    """
+    A generator function which wraps the PyTorch DataLoader. It will
+      ensure each tensor is on the write device location.
+    """
+    dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=batch_size,
+                                             shuffle=shuffle, drop_last=drop_last)
+
+    for data_dict in dataloader:
+        out_data_dict = {}
+        for name, tensor in data_dict.items():
+            out_data_dict[name] = data_dict[name].to(device)
+        yield out_data_dict
+
+
 def create_embedding(hparams, c_vectorizer, padding_idx=0):
     """
     Based on vectorized vocabulary, creates embedding from scratch or using GLOVE
@@ -187,12 +280,16 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
             word: glove_model.vocab[word].index for word in glove_model.vocab.keys()}
         for word in c_vectorizer.get_vocab()._token_to_idx.keys():
             i = c_vectorizer.get_vocab().lookup_token(word)
-            if word in token2idx:
-                glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
+            if i != padding_idx:
+                if word in token2idx:
+                    glove_embedding[i, :] = glove_model.vectors[token2idx[word]]
+                else:
+                    # From NLP with pytorch, it should be better to init the unknown tokens
+                    embedding_i = torch.ones(1, glove_model.vector_size)
+                    torch.nn.init.xavier_uniform_(embedding_i)
+                    glove_embedding[i, :] = embedding_i
             else:
-                # From NLP with pytorch, it should be better to init the unknown tokens
-                embedding_i = torch.ones(1, glove_model.vector_size)
-                torch.nn.init.xavier_uniform_(embedding_i)
+                embedding_i = torch.zeros(1, glove_model.vector_size)
                 glove_embedding[i, :] = embedding_i
 
         embed_size = glove_model.vector_size
@@ -240,6 +337,12 @@ def create_model_name(hparams):
     without_punct = ""
     if hparams["annotation_without_punctuation"]:
         without_punct = "_wp"
+    teacher_forcing = ""
+    if hparams["teacher_forcing"]:
+        without_punct = "_tf"
+    padding_idx = ""
+    if hparams["use_padding_idx"]:
+        padding_idx = "_pad"
+    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_cs{hparams['crop_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}{teacher_forcing}{padding_idx}.{extension}"
 
-    model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_cs{hparams['crop_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}.{extension}"
     return model_name

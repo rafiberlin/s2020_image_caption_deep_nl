@@ -121,10 +121,10 @@ class BleuScorer:
                 starting_token = v.create_starting_sequence().to(device)
                 img = imgs[sample_idx].unsqueeze(dim=0).to(device)
                 caption = starting_token.unsqueeze(
-                    dim=0).unsqueeze(dim=0).to(device)
+                    dim=0).to(device)
                 input_for_prediction = (img, caption)
                 predicted_label = sampler(input_for_prediction)
-                current_hypothesis = v.decode(predicted_label[0][0])
+                current_hypothesis = v.decode(predicted_label[0])
                 hypothesis[_id] = [current_hypothesis]
                 # with false, gold gaptions have <UNK> token
                 if hparams["gold_eval_with_original"]:

@@ -22,6 +22,7 @@ GLOVE_SCRIPT = "./utils/glove_conv.py"
 PADDING_WORD = "<MASK>"
 BEGIN_WORD = "<BEGIN>"
 SEED = 1
+torch.set_num_threads(10)
 
 
 def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
@@ -76,7 +77,6 @@ def init_model(hparams, network, force_training=False):
     model_path = os.path.join(model_dir, model_name)
     print("Model save path:", model_path)
     device = next(network.parameters()).device
-
     start_training = True
     if os.path.isfile(model_path) and not force_training:
         network.load_state_dict(torch.load(model_path, map_location=device))
@@ -106,13 +106,10 @@ def compute_loss_on_validation(val_loader, device, network):
     val_loss_function = nn.NLLLoss().to(device)
     with torch.no_grad():
         for val_idx, val_batch in enumerate(val_loader):
-            val_images, val_in_captions, val_out_captions = util.CocoDatasetWrapper.transform_batch_for_training(
-                val_batch,
-                device)
+            val_images, val_in_captions, val_out_captions = val_batch
             del val_batch
-            val_log_prediction = network(val_images, val_in_captions).permute(0, 2, 1)
-            batch_times_caption = val_log_prediction.shape[0]
-            val_out_captions = val_out_captions.reshape(batch_times_caption, -1)
+            val_log_prediction = network(val_images.to(device), val_in_captions.to(device)).permute(0, 2, 1)
+            val_out_captions = val_out_captions.to(device)
             val_total_loss += val_loss_function(val_log_prediction, val_out_captions)
             del val_images
             del val_in_captions
@@ -169,15 +166,14 @@ def train(hparams, loss_function, network, train_loader, device, break_training_
     for epoch in tqdm(range(hparams["num_epochs"])):
         total_loss = torch.zeros(1, device=device)
         for idx, current_batch in enumerate(train_loader):
-            images, in_captions, out_captions = util.CocoDatasetWrapper.transform_batch_for_training(current_batch,
-                                                                                                     device)
+            images, in_captions, out_captions = current_batch
+
             del current_batch
             optimizer.zero_grad()
             # The input for the NLL Loss is batch times number of classes (vocabulary in our case)
             # times sequence length => hence the permutation
-            log_prediction = network(images, in_captions).permute(0, 2, 1)
-            batch_times_caption = log_prediction.shape[0]
-            out_captions = out_captions.reshape(batch_times_caption, -1)
+            log_prediction = network(images.to(device), in_captions.to(device)).permute(0, 2, 1)
+            out_captions = out_captions.to(device)
             loss = loss_function(log_prediction, out_captions)
             total_loss += loss
             loss.backward()
@@ -280,6 +276,7 @@ def main():
     else:
         hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
 
+    # Download prerequisite files if needed
     if args.download:
         prep.download_unpack_zip(hparams["img_train_url"], hparams["root"])
         prep.download_unpack_zip(hparams["img_val_url"], hparams["root"])
@@ -303,11 +300,12 @@ def main():
     else:
         print("CUDA GPU is available", "Number of machines:",
               torch.cuda.device_count())
-
     prep.set_seed_everywhere(SEED)
-    cleaned_captions = prep.get_captions(hparams, trainset_name)
-    cutoff_for_unknown_words = hparams["cutoff"]
 
+    # Retrieve captions and create the caption vectorizer
+    cleaned_captions, train_annotation_ids = prep.get_captions(hparams, trainset_name)
+    _, val_annotation_ids = prep.get_captions(hparams, valset_name)
+    cutoff_for_unknown_words = hparams["cutoff"]
     c_vectorizer = vocab.CaptionVectorizer.from_dataframe(
         cleaned_captions, cutoff_for_unknown_words)
     padding_idx = None
@@ -315,35 +313,45 @@ def main():
     if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
+    # Initializes the different data loader needed for training and evaluation
+    annotation_train_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer,
+                                                                           dataset_name=trainset_name,
+                                                                           annotation_ids=train_annotation_ids)
+    annotation_val_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer,
+                                                                         dataset_name=valset_name,
+                                                                         annotation_ids=val_annotation_ids)
     embedding = util.create_embedding(hparams, c_vectorizer, padding_idx)
-    train_loader = util.CocoDatasetWrapper.create_dataloader(
+    image_train_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, trainset_name)
-
-    # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
-    test_loader = util.CocoDatasetWrapper.create_dataloader(
-        hparams, c_vectorizer, testset_name, "train2017")
-    val_loader = util.CocoDatasetWrapper.create_dataloader(
+    image_val_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, valset_name)
+    # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
+    image_test_loader = util.CocoDatasetWrapper.create_dataloader(
+        hparams, c_vectorizer, testset_name, "train2017")
 
+    # Creates the model to train and intializes it with presaved model if applicable
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"],
                              rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"],
-                             improve_cnn=hparams["improve_cnn"]).to(device)
+                             improve_cnn=hparams["improve_cnn"], teacher_forcing=hparams["teacher_forcing"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
-    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, train_loader,
-                                                                                             val_loader, test_loader)
-
+    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams,
+                                                                                             annotation_train_loader,
+                                                                                             image_val_loader,
+                                                                                             image_test_loader)
+    # Starts training if no model file matching the parameters has been loaded
     if start_training:
         loss_function = nn.NLLLoss().to(device)
-        train(hparams, loss_function, network, train_loader,
-              device, break_training_loop_idx, val_loader)
+        train(hparams, loss_function, network, annotation_train_loader,
+              device, break_training_loop_idx, annotation_val_loader)
 
+    # Evaluation part
     bleu.BleuScorer.perform_whole_evaluation(
-        hparams, train_loader, network, break_training_loop_idx, "train")
+        hparams, image_train_loader, network, break_training_loop_idx, "train")
     bleu.BleuScorer.perform_whole_evaluation(
-        hparams, val_loader, network, break_val_loop_idx, "val")
-    # model.BleuScorer.perform_whole_evaluation(hparams, test_loader, network, break_test_loop_idx, "test")
+        hparams, image_val_loader, network, break_val_loop_idx, "val")
+
 
 if __name__ == '__main__':
     main()
