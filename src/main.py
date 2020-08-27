@@ -92,7 +92,6 @@ def init_model(hparams, network, force_training=False):
 
 def compute_loss_on_validation(val_loader, device, network):
     val_total_loss = torch.zeros(1, device=device)
-    #val_loss_function = nn.CrossEntropyLoss().to(device)
     val_loss_function = nn.NLLLoss().to(device)
     with torch.no_grad():
         for val_idx, val_batch in enumerate(val_loader):
@@ -326,7 +325,6 @@ def main():
                                                                                              image_val_loader, image_test_loader)
 
     if start_training:
-        #loss_function = nn.CrossEntropyLoss().to(device)
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, annotation_train_loader,
               device, break_training_loop_idx, annotation_val_loader)
