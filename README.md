@@ -82,9 +82,9 @@ If no command-line parameter is specified, the program will only perform the mod
 
 ## Optional: Use the trained model in the Jupyter Notebook under  notebooks/run_model_evaluation.ipynb
 
-Please download the saved model from [google drive](https://drive.google.com/file/d/1V_xn4pOJ4RQRLcVfLUgLQea_QCzw_PE4/view)
+Please download the saved model from [google drive](https://drive.google.com/file/d/1DcrmxJQWt-hVMdMJ_s1Pc030TkwBDRk2/view)
 
-And unzip it under: `/model_storage/lp10_img370_cs320_resnet50_gru_l3_hdim512_emb300_lr0.001_wd0_epo75_bat32_do0_cut2_can5_with_norm_ie_s.pt`
+And unzip it under: `/model_storage/lp10_img256_cs224_resnet50_gru_l2_hdim512_emb300_lr0.001_wd0_epo24_bat256_do0.03_cut2_can5_with_norm_ie_s_tf.pt`
 
 Please do not change the name of the model!
 
@@ -93,7 +93,7 @@ predictions have been processed and saved in order to quickly get an impression 
 
 ## Some parameters in hparams.json explained
 
-* rnn_layers : Enables the numbe of layers to be stacked on the RNN
+* rnn_layers : Enables the number of layers to be stacked on the RNN
 * drop_out_prob: only available when stacking RNN layers, ignore some hidden neurons with the given probabiliy. 
 Set 0 to not use it.
 * rnn_model : "gru" or "lstm"  are the possible values
@@ -142,6 +142,8 @@ training will stop and the last model before this loss increase will be saved.
 All these parameters will influence the name of the saved model.
 * keep_best_total_loss: dependent on training_report_frequency. If set to true, training loop will be stopped early to 
 reload the previous model, if the total loss stops decreasing
+* teacher_forcing: enables teacher forcing. Do not set to false as the training without teacher forcing suffers from 
+memory issues.
 
 For example, based on the training configuration, a valid model name could be: 
 
