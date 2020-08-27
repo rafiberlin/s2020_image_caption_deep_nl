@@ -1,4 +1,3 @@
-from collections import Counter
 import torchvision.datasets as dset
 from pathlib import Path
 from torchvision.transforms.functional import pad
@@ -15,8 +14,6 @@ from sklearn.model_selection import train_test_split
 from urllib.request import urlopen
 from zipfile import ZipFile
 from argparse import Namespace
-import model
-import util
 import torch.utils.data
 from pycocotools.coco import COCO
 
@@ -196,7 +193,8 @@ def get_captions(hparams, name):
 
     :param hparams: Hyperparameters
     :param name: Train/Test/Val
-    :return: List of captions for the given dataset name
+    :return: List of captions for the given dataset name, and a list of annotation ids
+            needed to initialize the util.CocoDatasetAnnotation dataloader correctly.
     """
 
     captions_number = hparams["caption_number"]
@@ -208,37 +206,12 @@ def get_captions(hparams, name):
     result = []
     annotation_ids = []
     for img in img_ids:
-        #only load captions used during training
+        # only load captions used during training
         ann_ids = coco_caps.getAnnIds(img)[:captions_number]
         anns = coco_caps.loadAnns(ann_ids)
         annotation_ids.extend(ann_ids)
         result.extend([a["caption"] for a in anns])
     return result, annotation_ids
-
-# def get_captions(hparams, name):
-#     """
-#     Only extracts the needed captions set in caption_number. Might reduce memory footprint for embeddings
-#     :param hparams:
-#     :param name:
-#     :return:
-#     """
-#
-#     transform_pipeline, shuffle = util.CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, name)
-#     train_file = hparams[name]
-#     image_dir = os.path.join(hparams['root'], train_file)
-#     caption_file_path = get_correct_annotation_file(hparams, name)
-#
-#     coco_train_set = dset.CocoDetection(root=image_dir,
-#                                         annFile=caption_file_path,
-#                                         transform=transform_pipeline
-#                                         )
-#     loader = torch.utils.data.DataLoader(coco_train_set, batch_size=hparams["batch_size"])
-#     captions_number = hparams["caption_number"]
-#     list = []
-#     for batch in tqdm(enumerate(loader)):
-#         captions = batch[1][1][:captions_number]
-#         list.extend([c for idx, caption_list in enumerate(captions) for c in caption_list["caption"]])
-#     return list
 
 
 def create_list_of_captions_and_clean(hparams, name, img_list=None, remove_punctuation=True):

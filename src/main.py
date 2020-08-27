@@ -24,6 +24,7 @@ BEGIN_WORD = "<BEGIN>"
 SEED = 1
 torch.set_num_threads(10)
 
+
 def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
     """
     Returns the indices needed to stop the loop early (only for debugging)
@@ -275,6 +276,7 @@ def main():
     else:
         hparams = prep.read_json_config(HYPER_PARAMETER_CONFIG)
 
+    # Download prerequisite files if needed
     if args.download:
         prep.download_unpack_zip(hparams["img_train_url"], hparams["root"])
         prep.download_unpack_zip(hparams["img_val_url"], hparams["root"])
@@ -298,12 +300,12 @@ def main():
     else:
         print("CUDA GPU is available", "Number of machines:",
               torch.cuda.device_count())
-
     prep.set_seed_everywhere(SEED)
+
+    # Retrieve captions and create the caption vectorizer
     cleaned_captions, train_annotation_ids = prep.get_captions(hparams, trainset_name)
     _, val_annotation_ids = prep.get_captions(hparams, valset_name)
     cutoff_for_unknown_words = hparams["cutoff"]
-
     c_vectorizer = vocab.CaptionVectorizer.from_dataframe(
         cleaned_captions, cutoff_for_unknown_words)
     padding_idx = None
@@ -311,38 +313,44 @@ def main():
     if (hparams["use_padding_idx"]):
         padding_idx = c_vectorizer.get_vocab()._token_to_idx[PADDING_WORD]
 
-    annotation_train_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=trainset_name, annotation_ids=train_annotation_ids)
-    #TODO use the other Dataloader...
-    annotation_val_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=valset_name, annotation_ids=val_annotation_ids)
-    #annotation_test_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer, dataset_name=testset_name, annotation_ids=train_annotation_ids)
+    # Initializes the different data loader needed for training and evaluation
+    annotation_train_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer,
+                                                                           dataset_name=trainset_name,
+                                                                           annotation_ids=train_annotation_ids)
+    annotation_val_loader = util.CocoDatasetAnnotation.create_dataloader(hparams, c_vectorizer,
+                                                                         dataset_name=valset_name,
+                                                                         annotation_ids=val_annotation_ids)
     embedding = util.create_embedding(hparams, c_vectorizer, padding_idx)
     image_train_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, trainset_name)
+    image_val_loader = util.CocoDatasetWrapper.create_dataloader(
+        hparams, c_vectorizer, valset_name)
     # The last parameter is needed, because the images of the testing set ar in the same directory as the images of the training set
     image_test_loader = util.CocoDatasetWrapper.create_dataloader(
         hparams, c_vectorizer, testset_name, "train2017")
-    image_val_loader = util.CocoDatasetWrapper.create_dataloader(
-        hparams, c_vectorizer, valset_name)
 
+    # Creates the model to train and intializes it with presaved model if applicable
     network = model.RNNModel(hparams["hidden_dim"], pretrained_embeddings=embedding,
                              cnn_model=hparams["cnn_model"], rnn_layers=hparams["rnn_layers"],
                              rnn_model=hparams["rnn_model"], drop_out_prob=hparams["drop_out_prob"],
                              improve_cnn=hparams["improve_cnn"], teacher_forcing=hparams["teacher_forcing"]).to(device)
 
     start_training = init_model(hparams, network, args.train)
-    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams, annotation_train_loader,
-                                                                                             image_val_loader, image_test_loader)
-
+    break_training_loop_idx, break_val_loop_idx, break_test_loop_idx = get_stop_loop_indices(hparams,
+                                                                                             annotation_train_loader,
+                                                                                             image_val_loader,
+                                                                                             image_test_loader)
+    # Starts training if no model file matching the parameters has been loaded
     if start_training:
         loss_function = nn.NLLLoss().to(device)
         train(hparams, loss_function, network, annotation_train_loader,
               device, break_training_loop_idx, annotation_val_loader)
 
+    # Evaluation part
     bleu.BleuScorer.perform_whole_evaluation(
-          hparams, image_train_loader, network, break_training_loop_idx, "train")
+        hparams, image_train_loader, network, break_training_loop_idx, "train")
     bleu.BleuScorer.perform_whole_evaluation(
-         hparams, image_val_loader, network, break_val_loop_idx, "val")
-    bleu.BleuScorer.perform_whole_evaluation(hparams, image_test_loader, network, break_test_loop_idx, "test")
+        hparams, image_val_loader, network, break_val_loop_idx, "val")
 
 
 if __name__ == '__main__':

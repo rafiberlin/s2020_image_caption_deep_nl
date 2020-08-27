@@ -10,11 +10,12 @@ import preprocessing as prep
 from pycocotools.coco import COCO
 from PIL import Image
 
+
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
         """
-        Constructor
+        Constructor. Only to be used during evaluation (for valivation or testing purposes).
 
         :param cocodaset: Pytorch COCO dataloader
         :param vectorizer: vectorized vocabulary
@@ -27,7 +28,7 @@ class CocoDatasetWrapper(Dataset):
         self.caption_number = caption_number
 
     @classmethod
-    def _get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
+    def get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
         """
         Returns a transformation pipeline for dataloader based on the dataset split
         and whether the dataset should be shuffled or not
@@ -43,7 +44,7 @@ class CocoDatasetWrapper(Dataset):
         cropsize = hparams["crop_size"]
         # Most on the example in pytorch have this minimum crop size for random cropping
         assert cropsize >= 224
-
+        transform_pipeline = None
         if dataset_name == "train":
             shuffle = hparams["shuffle"]
             if hparams["use_pixel_normalization"]:
@@ -109,7 +110,7 @@ class CocoDatasetWrapper(Dataset):
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
 
-        transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(
+        transform_pipeline, shuffle = cls.get_transform_pipeline_and_shuffle(
             hparams, dataset_name)
 
         coco_train_set = dset.CocoDetection(root=image_dir,
@@ -169,17 +170,18 @@ class CocoDatasetWrapper(Dataset):
 
 
 class CocoDatasetAnnotation(Dataset):
-    """COCO Custom Dataset compatible with torch.utils.data.DataLoader."""
 
     def __init__(self, root, json, vectorizer, hparams, annotation_ids=None):
-        """Set the path for images, captions and vocabulary wrapper.
-
-        Args:
-            root: image directory.
-            json: coco annotation file path.
-            vocab: vocabulary wrapper.
-            transform: image transformer.
         """
+        Constructor. Only to be used during training.
+
+        :param root: image directory
+        :param json: coco annotation file path.
+        :param vectorizer:
+        :param hparams: general project parameters
+        :param annotation_ids: list of annotation ids to be loaded by the dataloader
+        """
+
         self.root = root
         self.coco = COCO(json)
         if annotation_ids is None:
@@ -187,59 +189,8 @@ class CocoDatasetAnnotation(Dataset):
         else:
             self.ids = annotation_ids
         self.vectorizer = vectorizer
-        transform, _ = CocoDatasetWrapper._get_transform_pipeline_and_shuffle(hparams, "train")
+        transform, _ = CocoDatasetWrapper.get_transform_pipeline_and_shuffle(hparams, "train")
         self.transform = transform
-    @classmethod
-    def _get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
-        img_size = hparams['image_size']
-        # Most on the example in pytorch have this minimum size before cropping
-        assert img_size >= 256
-        cropsize = hparams["crop_size"]
-        # Most on the example in pytorch have this minimum crop size for random cropping
-        assert cropsize >= 224
-        transform_pipeline = None
-        if dataset_name == "train":
-            shuffle = hparams["shuffle"]
-            if hparams["use_pixel_normalization"]:
-                transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                                         transforms.Resize(
-                                                             (img_size, img_size)),
-                                                         transforms.RandomCrop(
-                                                             cropsize),
-                                                         transforms.RandomHorizontalFlip(),
-                                                         transforms.ToTensor(),
-                                                         transforms.Normalize((0.485, 0.456, 0.406),
-                                                                              # recommended resnet config
-                                                                              (0.229, 0.224, 0.225))
-                                                         ])
-            else:
-                transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                                         transforms.Resize(
-                                                             (img_size, img_size)),
-                                                         transforms.RandomCrop(
-                                                             cropsize),
-                                                         transforms.RandomHorizontalFlip(),
-                                                         transforms.ToTensor()])
-        else:
-            shuffle = False
-            if hparams["use_pixel_normalization"]:
-                transform_pipeline = transforms.Compose([prep.CenteringPad(),
-                                                         transforms.Resize(
-                                                             (img_size, img_size)),
-                                                         transforms.CenterCrop(
-                                                             cropsize),
-                                                         transforms.ToTensor(),
-                                                         transforms.Normalize((0.485, 0.456, 0.406),
-                                                                              # recommended resnet config
-                                                                              (0.229, 0.224, 0.225))
-                                                         ])
-            else:
-                transforms.Compose([prep.CenteringPad(),
-                                    transforms.Resize((img_size, img_size)),
-                                    transforms.CenterCrop(cropsize),
-                                    transforms.ToTensor()
-                                    ])
-        return transform_pipeline, shuffle
 
     @classmethod
     def create_dataloader(cls, hparams, c_vectorizer, dataset_name="train2017", image_dir=None, annotation_ids=None):
@@ -262,10 +213,11 @@ class CocoDatasetAnnotation(Dataset):
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
 
-        transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(
+        _, shuffle = CocoDatasetWrapper.get_transform_pipeline_and_shuffle(
             hparams, dataset_name)
 
-        coco_annotation_loader = CocoDatasetAnnotation(image_dir, caption_file_path, c_vectorizer, hparams, annotation_ids=annotation_ids)
+        coco_annotation_loader = CocoDatasetAnnotation(image_dir, caption_file_path, c_vectorizer, hparams,
+                                                       annotation_ids=annotation_ids)
         batch_size = hparams["batch_size"]
 
         train_loader = torch.utils.data.DataLoader(coco_annotation_loader, batch_size=batch_size, pin_memory=True,
@@ -289,6 +241,7 @@ class CocoDatasetAnnotation(Dataset):
 
     def __len__(self):
         return len(self.ids)
+
 
 def generate_batches(dataset, batch_size, shuffle=True,
                      drop_last=True, device="cpu"):
@@ -387,8 +340,9 @@ def create_model_name(hparams):
     teacher_forcing = ""
     if hparams["teacher_forcing"]:
         without_punct = "_tf"
-    padding_idx=""
+    padding_idx = ""
     if hparams["use_padding_idx"]:
-        padding_idx="_pad"
+        padding_idx = "_pad"
     model_name = f"lp{hparams['break_training_loop_percentage']}_img{hparams['image_size']}_cs{hparams['crop_size']}_{hparams['cnn_model']}_{hparams['rnn_model']}_l{hparams['rnn_layers']}{root_name}hdim{str(hparams['hidden_dim'])}_emb{str(hparams['embedding_dim'])}_lr{str(hparams['lr'])}_wd{str(hparams['weight_decay'])}{sgd_momentum}_epo{str(hparams['num_epochs'])}_bat{str(hparams['batch_size'])}_do{str(hparams['drop_out_prob'])}_cut{str(hparams['cutoff'])}_can{str(hparams['caption_number'])}{norm}{clip_grad}{improve_embeddings}{shuffle}{improve_cnn}{without_punct}{teacher_forcing}{padding_idx}.{extension}"
+
     return model_name
