@@ -140,8 +140,8 @@ a prefix. If set to a value between 1 and 99, it will try to use a file with a p
 to train / evaluate. These files contain the prefixed percentage of the original annotation files.
 * annotation_without_punctuation: True or false, allows to switch with annotation files conatining punctuation or not 
 (all words are lower case anyway)
-* sampling_method: Enter "beam_search" to generate caption with beam search, beam_search_early_stop stops at the first finished sequence
-,sample_search to sample a word based on the probability of the softmax output or null to take the word with highest probability at each_step
+* sampling_method: Enter to generate "beam_search_early_stop" to generate a caption with beam search stopping at the 
+first complete sentence, "" to take the word with highest probability at each_step (greedy algorithm)
 * beam_width: size of the beam search
 * training_report_frequency: prints the total loss during training every X epochs.
 * save_pending_model:  used with training_report_frequency, allow to save the corresponding model, prefixed 
