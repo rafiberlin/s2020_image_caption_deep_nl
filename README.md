@@ -1,3 +1,8 @@
+# Deep Learning for NLP Summer Semester 2020 - Image Caption Generator with Neural Network 
+
+This is an implementation of a Neural Image Captioning (NIC) model, based on the methodology described by 
+[Vinyal et al.](https://arxiv.org/pdf/1411.4555.pdf)
+
 ## Installing
 
 * Download the [COCO dataset images from 2017](http://cocodataset.org/#download) and [GloVe Embedding Vectors](http://nlp.stanford.edu/data/glove.6B.zip) and place them into the data directory. The needed annotations are already included in this repository. Please note that the described command will not only download the dataset but will also start the model training and evaluation.
@@ -93,6 +98,22 @@ Please do not change the name of the model!
 
 The Jupyter notebook is preconfigured to run the model to download. The results of the model evaluation and some 
 predictions have been processed and saved in order to quickly get an impression of the trained model.
+
+## Our model results
+
+We were able to train a model which performed better than the human average on the test set, even though we use a 
+narrower beam width than [Vinyal et al.](https://arxiv.org/pdf/1411.4555.pdf)
+
+|                                                                |                  | BLEU-4 Scores |                  |
+|----------------------------------------------------------------|------------------|---------------|------------------|
+|                                                                | Training         | Validation    | Test             |
+| Human Average \- Original Paper                                | Not communicated | 27\.7         | 27\.2            |
+| NIC \- Original Paper                                          | Not Communicated | 21\.7         | Not communicated |
+| Human Average \- Current Experiment                            | 19\.4            | 18\.8         | 19\.1            |
+| NIC \- Current Experiment \- Greedy Search                     | 25\.0            | 19\.5         | 18\.7            |
+| NIC \- Current Experiment \- Beam Search with n= 3, early stop | 29\.9            | 22\.6         | 22\.1            |
+|                                                                |                  |               |                  |
+
 
 ## Some parameters in hparams.json explained
 
