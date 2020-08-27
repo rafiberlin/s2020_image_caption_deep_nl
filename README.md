@@ -34,14 +34,62 @@ pip3 install -r requirements.txt
 
 Requirements have been automatically generated using [pigar](https://github.com/damnever/pigar).
 
-## Running
+Please note that you will need to install the pytorch framework that matches your Nvidia GPU Drivers manually.
+
+For our project, we installed pytorch and torchvision with:
 
 ```
-python3 src/main.py
+pip install torch==1.5.1+cu101 torchvision==0.6.1+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+```
+Please consult [pytorch.org](https://pytorch.org/get-started/locally/) to get pip instructions for other versions.
+
+## Optional: Custom installation
+
+If the dataset is locally available, you can create a copy of the hyperparameters file and change
+the value of `root` to the desired path of the dataset. This will allow the program to search in the specified root folder for the train set, validation set and test set. Annotations should be provided in `/{path to root}/annotations`
+
+```json
+"root": "/media/user/mscoco",
+```
+
+However, this **requires** the dataset to be pre-processed first via
+```
+python3 main.py --prep
+```
+
+If a different version of the dataset is supposed to be used, adjust `train`, `val` and `test` to the correct version.
+```json
+"train": "train2017",
+"val": "val2017",
+"test": "test2017",
+```
+
+Be careful though as older version of the dataset might have missing pictures, which were removed later but without 
+a proper update of the corresponding annotation files.
+
+## Training and testing
+
+If the dataset is downloaded and the glove vectors have been converted, then the training can be started via
+
+```
+python3 src/main.py --train
 ```
 
 Model checkpoints will be saved in the model_storage directory,
 which will be created if non-existent.
+
+If no command-line parameter is specified, the program will only perform the model evaluation.
+
+## Optional: Use the trained model in the Jupyter Notebook under  notebooks/run_model_evaluation.ipynb
+
+Please download the saved model from [google drive](https://drive.google.com/file/d/1V_xn4pOJ4RQRLcVfLUgLQea_QCzw_PE4/view)
+
+And unzip it under: `/model_storage/lp10_img370_cs320_resnet50_gru_l3_hdim512_emb300_lr0.001_wd0_epo75_bat32_do0_cut2_can5_with_norm_ie_s.pt`
+
+Please do not change the name of the model!
+
+The Jupyter notebook is preconfigured to run the model to download. The results of the model evaluation and some 
+predictions have been processed and saved in order to quickly get an impression of the trained model.
 
 ## Some parameters in hparams.json explained
 
@@ -94,7 +142,8 @@ training will stop and the last model before this loss increase will be saved.
 All these parameters will influence the name of the saved model.
 * keep_best_total_loss: dependent on training_report_frequency. If set to true, training loop will be stopped early to 
 reload the previous model, if the total loss stops decreasing
+
 For example, based on the training configuration, a valid model name could be: 
 
-lp1_img256_mobilenet_gru_l4_hdim512_emb300_lr0.001_wd1e-05_epo300_bat32_do0.35_cut2_can3_with_norm_ie_s_ic.pt
+`lp1_img256_mobilenet_gru_l4_hdim512_emb300_lr0.001_wd1e-05_epo300_bat32_do0.35_cut2_can3_with_norm_ie_s_ic.pt`
 

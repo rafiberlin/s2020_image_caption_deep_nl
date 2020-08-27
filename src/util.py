@@ -13,6 +13,13 @@ from PIL import Image
 class CocoDatasetWrapper(Dataset):
 
     def __init__(self, cocodaset, vectorizer, caption_number=5):
+        """
+        Constructor
+
+        :param cocodaset: Pytorch COCO dataloader
+        :param vectorizer: vectorized vocabulary
+        :param caption_number: number of captions to use
+        """
         self.cocodaset = cocodaset
         self.vectorizer = vectorizer
         if caption_number > 5:
@@ -21,6 +28,15 @@ class CocoDatasetWrapper(Dataset):
 
     @classmethod
     def _get_transform_pipeline_and_shuffle(cls, hparams, dataset_name):
+        """
+        Returns a transformation pipeline for dataloader based on the dataset split
+        and whether the dataset should be shuffled or not
+
+        :param hparams: Project parameters
+        :param dataset_name: name of the datasets
+        :return: tuples with a transformation pipeline and a boolean
+        """
+
         img_size = hparams['image_size']
         # Most on the example in pytorch have this minimum size before cropping
         assert img_size >= 256
@@ -76,11 +92,12 @@ class CocoDatasetWrapper(Dataset):
         """
         For dataset_name="train", the data will be shuffled, randomly flipped and cropped. For the rest, just a center
         crop without shuffling
-        :param hparams:
-        :param c_vectorizer:
-        :param dataset_name:
-        :param image_dir:
-        :return:
+
+        :param hparams: Hyperparameters
+        :param c_vectorizer: Caption vectorizer
+        :param dataset_name: Name of the dataset to use
+        :param image_dir: Directory of the images relative to root
+        :return: DataLoader for the dataset
         """
         train_file = hparams[dataset_name]
         if image_dir == None:
@@ -92,12 +109,6 @@ class CocoDatasetWrapper(Dataset):
         print("Image dir:", image_dir)
         print("Caption file path:", caption_file_path)
 
-        # rgb_stats = prep.read_json_config(hparams["rgb_stats"])
-        # stats_rounding = hparams["rounding"]
-        # rgb_stats = {"mean": [0.31686973571777344, 0.30091845989227295, 0.27439242601394653],
-        #              "sd": [0.317791610956192, 0.307492196559906, 0.3042858839035034]}
-        # rgb_mean = tuple([round(m, stats_rounding) for m in rgb_stats["mean"]])
-        # rgb_sd = tuple([round(s, stats_rounding) for s in rgb_stats["mean"]])
         transform_pipeline, shuffle = cls._get_transform_pipeline_and_shuffle(
             hparams, dataset_name)
 
@@ -118,8 +129,9 @@ class CocoDatasetWrapper(Dataset):
     @classmethod
     def transform_batch_for_training(cls, batch, device="cpu"):
         """
+        Converts a batch to a 3-tuple: Images, in-captions, out-captions
 
-        :param batch:
+        :param batch: Batch to transform
         :return: a tuple of 3 element: the images, the in-vectorized captions and
                 the out-vectorized captions for the loss function
         """
@@ -129,8 +141,15 @@ class CocoDatasetWrapper(Dataset):
         return self.cocodaset.__len__()
 
     def __getitem__(self, index):
+        """
+        Overwrite the pytorch dataloader behavior to return
+        the vectorized captions as needed during training
+
+        :param index: Index for the COCO dataset
+        :return: 3-tuple of image, in-caption and out-caption
+        """
         image, captions = self.cocodaset.__getitem__(index)
-        # it seams like we always get 5 different captions for an image...
+        # We always get 5 different captions for an image
         num_captions = len(captions)
         # self.vectorizer.max_sequence_length - 1 because in label and out labels are shifted by 1 to match
         # for example, if the last real word in a caption is cat, the expected output caption is <end>...
@@ -288,6 +307,15 @@ def generate_batches(dataset, batch_size, shuffle=True,
 
 
 def create_embedding(hparams, c_vectorizer, padding_idx=0):
+    """
+    Based on vectorized vocabulary, creates embedding from scratch or using GLOVE
+
+    :param hparams: the project parameters
+    :param c_vectorizer: vectorized vocabulary
+    :param padding_idx: The index of the <MASK> token
+    :return: nn.Embedding layer
+    """
+
     vocabulary_size = len(c_vectorizer.get_vocab())
     if hparams["use_glove"]:
         print("Loading glove vectors...")
@@ -310,14 +338,13 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
             else:
                 embedding_i = torch.zeros(1, glove_model.vector_size)
                 glove_embedding[i, :] = embedding_i
+
         embed_size = glove_model.vector_size
         if hparams["embedding_dim"] < embed_size:
             embed_size = hparams["embedding_dim"]
 
         embedding = nn.Embedding.from_pretrained(
             torch.FloatTensor(glove_embedding[:, :embed_size]))
-        # embedding = nn.Embedding.from_pretrained(
-        #     torch.FloatTensor(glove_embedding[:, :embed_size]))
         embedding.weight.requires_grad = hparams["improve_embedding"]
         print("GloVe embedding size:", glove_model.vector_size)
     else:
@@ -329,8 +356,9 @@ def create_embedding(hparams, c_vectorizer, padding_idx=0):
 def create_model_name(hparams):
     """
     Creates a model name that encodes the training parameters
-    :param hparams:
-    :return:
+
+    :param hparams: the project parameters
+    :return: a string that encodes the training parameters
     """
 
     root_name, extension = hparams["model_name"].split(".")
@@ -339,7 +367,7 @@ def create_model_name(hparams):
         norm = "_with_norm"
     clip_grad = ""
     if hparams['clip_grad']:
-        clip_grad = f"_cg{hparams['clip_grad']}"
+        clip_grad = "_cg"
     improve_embeddings = ""
     if hparams['improve_embedding']:
         improve_embeddings = "_ie"
@@ -352,6 +380,7 @@ def create_model_name(hparams):
     sgd_momentum = ""
     if hparams['sgd_momentum']:
         sgd_momentum = f"_sgdm{hparams['sgd_momentum']}"
+
     without_punct = ""
     if hparams["annotation_without_punctuation"]:
         without_punct = "_wp"

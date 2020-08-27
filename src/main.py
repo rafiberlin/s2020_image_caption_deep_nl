@@ -29,6 +29,7 @@ def get_stop_loop_indices(hparams, train_loader, val_loader, test_loader):
     Returns the indices needed to stop the loop early (only for debugging)
     Make sure that hparams["shuffle"] is false when debugging.
     Otherwise hparams["shuffle"] must always be true for correct learning
+
     :param hparams:
     :param train_loader:
     :param val_loader:
@@ -57,6 +58,7 @@ def init_model(hparams, network, force_training=False):
     """
     Init the model with pre-existing learned values.
     Returns a boolean which indicates if the training should be started or not.
+
     :param hparams:
     :param network:
     :param force_training:
@@ -91,6 +93,14 @@ def init_model(hparams, network, force_training=False):
 
 
 def compute_loss_on_validation(val_loader, device, network):
+    """
+    Calculate the total loss on the validation set
+
+    :param val_loader: Datraset loader for the validation set
+    :param device: Device to use
+    :param network: Network model
+    :return: Validation loss
+    """
     val_total_loss = torch.zeros(1, device=device)
     val_loss_function = nn.NLLLoss().to(device)
     with torch.no_grad():
@@ -109,14 +119,14 @@ def compute_loss_on_validation(val_loader, device, network):
 def train(hparams, loss_function, network, train_loader, device, break_training_loop_idx, val_loader):
     """
     Performs the main training loop
-    :param hparams:
-    :param loss_function:
-    :param network:
-    :param train_loader:
-    :param device:
-    :param break_training_loop_idx:
-    :param val_loader:
-    :return:
+
+    :param hparams: Hyperparameters
+    :param loss_function: Loss function to use
+    :param network: Network model
+    :param train_loader: Dataloader for the training set
+    :param device: Device to use
+    :param break_training_loop_idx: Index to break training loop
+    :param val_loader: Dataloader for the validation set
     """
 
     model_dir = hparams["model_storage"]
@@ -279,7 +289,6 @@ def main():
     torch.cuda.empty_cache()
 
     trainset_name = "train"
-    # trainset_name = "val"
     valset_name = "val"
     testset_name = "test"
     device = hparams["device"]

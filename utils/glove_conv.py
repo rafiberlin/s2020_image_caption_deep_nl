@@ -3,6 +3,10 @@ from gensim.scripts.glove2word2vec import glove2word2vec
 from gensim.models import KeyedVectors
 import os
 
+"""
+This script transform the GLOVE embeddind original format to a Word2Vec format
+"""
+
 root = './data'
 files = ['glove.6B.100d.txt', 'glove.6B.300d.txt', 'glove.6B.50d.txt']
 for f in files:
@@ -17,4 +21,3 @@ for f in files:
 
     outpath = os.path.splitext(glove_input_file)[0] + ".bin.word2vec"
     w2v.save_word2vec_format(outpath, binary=True)
-
