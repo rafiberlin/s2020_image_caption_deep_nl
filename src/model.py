@@ -145,11 +145,6 @@ class RNNModel(nn.Module):
         # Transform the image hidden to shape batch size * number captions * 1 * embedding dimension
         image_hidden = image_hidden.unsqueeze(dim=1)
 
-        # if self.teacher_forcing:
-        #     teacher_force = random.random() < 0.5
-        # else:
-        #     teacher_force = False
-
         if self.teacher_forcing:
             embeds = self.embeddings(labels)
 
