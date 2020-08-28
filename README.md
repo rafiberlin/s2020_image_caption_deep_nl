@@ -154,13 +154,13 @@ human average BLEU scores.
 |                                                                |                  | BLEU-4 Scores |                  |
 |----------------------------------------------------------------|------------------|---------------|------------------|
 |                                                                | Training         | Validation    | Test             |
-| Human Average \- Original Paper                                | Not communicated | 27\.7         | 27\.2            |
-| NIC \- Original Paper                                          | Not Communicated | 21\.7         | Not communicated |
+| Human Average \- Original Paper                                | Not communicated | 21\.7         | Not communicated |
+| NIC \- Original Paper                                          | Not Communicated | 27\.7         | 27\.2            |
 | Human Average \- Current Experiment                            | 19\.4            | 18\.8         | 19\.1            |
 | NIC \- Current Experiment \- Greedy Search                     | 25\.0            | 19\.5         | 18\.7            |
 | NIC \- Current Experiment \- Beam Search with n= 3, early stop | 29\.9            | 22\.6         | 22\.1            |
-| NIC \- Current Experiment \- Beam Search with n= 4, early stop | 30\.1            | 23\.7         | 22\.2            |         |                  |               |                  |
-
+| NIC \- Current Experiment \- Beam Search with n= 4, early stop | 30\.1            | 23\.7         | 22\.2            |         
+|                                                                |                  |               |                  |
 
 ## Some parameters in hparams.json explained
 
