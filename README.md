@@ -20,7 +20,7 @@ This is an implementation of a Neural Image Captioning (NIC) model, based on the
     │   ├── preprocessing.py                    # contains code used to preprocess the annotations and the images
     │   ├── util.py                             # contains many utility function such as embedding creation, dataloading or filename creation
     │   ├── vocab.py                            # contains code necessary to vectorize the image captions
-    ├── hparams.json                            # Configuration files allowing to easily change all model characteristics
+    ├── hparams.json                            # configuration file allowing to easily change all model characteristics
     ├── requirements.txt                        # modules necessary to run scripts (Unix installation)
     └── requirements_win.txt                    # modules necessary to run scripts (Windows installation)
 
