@@ -3,6 +3,27 @@
 This is an implementation of a Neural Image Captioning (NIC) model, based on the methodology described by 
 [Vinyal et al.](https://arxiv.org/pdf/1411.4555.pdf)
 
+
+## Repository Structure
+
+    ├── data                                    # data used for training, development and testing
+    │   ├── annotations                         # contains preprocessed COCO annotations (2017) for all data splits
+    |   ├── train2017                           # contains the COCO images for the training and the testing dataset
+    |   ├── val2017                             # contains the COCO images for the validation dataset
+    ├── img                                     # only contains some generated graphs for the report  
+    ├── model_storage                           # directory where trained models, the bleu scores and training Loss statistics and prediction are stored  
+    ├── notebooks                               # contains a Jupyter notebook where validation, testing results and some inferences are displayed   
+    ├── src                                     # project source code  
+    │   ├── bleu.py                             # contains the relevant code for the BLEU evaluation  
+    │   ├── main.py                             # main script training / loading model and evaluating on testing and validation sets
+    │   ├── model.py                            # contains our NIC model implementation
+    │   ├── preprocessing.py                    # contains code used to preprocess the annotations and the images
+    │   ├── util.py                             # contains many utility function such as embedding creation, dataloading or filename creation
+    │   ├── vocab.py                            # contains code necessary to vectorize the image captions
+    ├── hparams.json                            # Configuration files allowing to easily change all model characteristics
+    ├── requirements.txt                        # modules necessary to run scripts (Unix installation)
+    └── requirements_win.txt                    # modules necessary to run scripts (Windows installation)
+
 ## Installing
 
 * Download the [COCO dataset images from 2017](http://cocodataset.org/#download) and [GloVe Embedding Vectors](http://nlp.stanford.edu/data/glove.6B.zip) and place them into the data directory. The needed annotations are already included in this repository. Please note that the described command will not only download the dataset but will also start the model training and evaluation.
@@ -106,6 +127,20 @@ narrower beam width than [Vinyal et al.](https://arxiv.org/pdf/1411.4555.pdf)
 
 The detailed results and the predictions for all dataset splits are stored under `/model_storage`
 
+Files named as ``[timestamp][dataset split]_bleu_prediction_orig.json`` contains a listing of all prediction and 
+original captions for the corresponding dataset.
+
+Files named as ``[timestamp][dataset split]_bleu_prediction_orig.json`` contains a listing of all prediction and 
+original captions for the corresponding dataset.
+
+Files named as ``[timestamp][dataset split]_bleu_prediction_scores_orig.json`` contains the BLEU scores for greedy 
+caption generation.
+
+Files named as ``[timestamp][dataset split]_bleu_prediction_scores_bse_bw[actual beam width]_orig.json`` contains the 
+BLEU scores for beam search with early stop.
+
+Files named as ``[timestamp][dataset split]_bleu_gold_orig.json`` contains the 
+human average BLEU scores.
 
 |                                                                |                  | BLEU-4 Scores |                  |
 |----------------------------------------------------------------|------------------|---------------|------------------|
@@ -115,7 +150,7 @@ The detailed results and the predictions for all dataset splits are stored under
 | Human Average \- Current Experiment                            | 19\.4            | 18\.8         | 19\.1            |
 | NIC \- Current Experiment \- Greedy Search                     | 25\.0            | 19\.5         | 18\.7            |
 | NIC \- Current Experiment \- Beam Search with n= 3, early stop | 29\.9            | 22\.6         | 22\.1            |
-|                                                                |                  |               |                  |
+| NIC \- Current Experiment \- Beam Search with n= 4, early stop | 30\.1            | 23\.7         | 22\.2            |         |                  |               |                  |
 
 
 ## Some parameters in hparams.json explained
