@@ -26,12 +26,14 @@ This is an implementation of a Neural Image Captioning (NIC) model, based on the
 
 ## Installing
 
-* Download the [COCO dataset images from 2017](http://cocodataset.org/#download) and [GloVe Embedding Vectors](http://nlp.stanford.edu/data/glove.6B.zip) and place them into the data directory. The needed annotations are already included in this repository. Please note that the described command will not only download the dataset but will also start the model training and evaluation.
+* Download the [COCO dataset images from 2017](http://cocodataset.org/#download) and [GloVe Embedding Vectors](http://nlp.stanford.edu/data/glove.6B.zip) and place them into the data directory. 
+The needed annotations are already included in this repository and were already processed.
+Please note that the described command will not only download the dataset but will also start the model training and evaluation.
 
 ```
 python3 src/main.py --download
 ```
-* A faster alternative to download the needed data is to use wget available on Unix systems.
+* The faster (recommanded) alternative to download the needed data is to use wget available on Unix systems.
 
 ```
 wget http://images.cocodataset.org/zips/train2017.zip -O data/train2017.zip
@@ -47,7 +49,9 @@ wget http://nlp.stanford.edu/data/glove.6B.zip -O data/glove.6B.zip
 unzip data/glove.6B.zip -d data
 ```
 
-* If you decided to download the data with wget, please note that you need to run this script before starting the training and evaluation:
+* If you decided to download the data with wget, please note that you need to run this script 
+before starting the training and evaluation (it will convert 
+the GLOVE embeddings into Word2Vec file format):
 ```
 python3 utils/glove_conv.py
 ```
@@ -60,7 +64,7 @@ pip3 install -r requirements.txt
 
 Requirements have been automatically generated using [pigar](https://github.com/damnever/pigar). 
 This tool does not always detect all dependencies correctly and you might need to install some packages
-manually (for example, packages like cython which are not used in the project but is used to correctly install
+manually (for example, packages like cython which is not used in the project but is used to correctly install
 some dependencies). If you run into an error check the warnings and install the missing packages accordingly.
 
 Please note that you will need to install the pytorch framework that matches your Nvidia GPU Drivers manually.
@@ -101,13 +105,22 @@ a proper update of the corresponding annotation files.
 If the dataset is downloaded and the glove vectors have been converted, then the training can be started via
 
 ```
-python3 src/main.py --train
+python3 src/main.py
 ```
 
-Model checkpoints will be saved in the model_storage directory,
+Model checkpoints will be saved in the `/model_storage` directory,
 which will be created if non-existent.
 
-If no command-line parameter is specified, the program will only perform the model evaluation.
+
+If no command-line parameter is specified and a trained model matching the configuration in the hparams.json file is 
+available, the program will perform the model evaluation on training and validation set only. (To evaluate on the 
+testing set, use the Jupyter notebook)
+
+To force a re-training, use:
+
+```
+python3 src/main.py --train
+```
 
 ## Optional: Use the trained model in the Jupyter Notebook under  notebooks/run_model_evaluation.ipynb
 

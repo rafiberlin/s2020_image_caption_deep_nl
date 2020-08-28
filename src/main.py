@@ -278,14 +278,18 @@ def main():
 
     # Download prerequisite files if needed
     if args.download:
+        print("Download...")
         prep.download_unpack_zip(hparams["img_train_url"], hparams["root"])
         prep.download_unpack_zip(hparams["img_val_url"], hparams["root"])
         prep.download_unpack_zip(hparams["glove_url"], hparams["root"])
         with open(GLOVE_SCRIPT) as script_file:
             exec(script_file.read())
+        print("Download finished")
 
     if args.prep:
+        print("Preprocessing...")
         prep.clean_caption_annotations(hparams, ["train", "val"])
+        print("Preprocessing finished")
 
     # Make sure the Cuda Start is fresh...
     torch.cuda.empty_cache()
