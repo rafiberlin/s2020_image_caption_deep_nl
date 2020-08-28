@@ -26,6 +26,22 @@ This is an implementation of a Neural Image Captioning (NIC) model, based on the
 
 ## Installing
 
+* Install python libraries with: `pip3 install -r requirements.txt`
+
+    Requirements have been automatically generated using [pigar](https://github.com/damnever/pigar). 
+    This tool does not always detect all dependencies correctly and you might need to install some packages
+    manually (for example, packages like cython which is not used in the project but is used to correctly install
+    some dependencies). If you run into an error check the warnings and install the missing packages accordingly.
+    
+    Please note that you will need to install the pytorch framework that matches your Nvidia GPU Drivers manually.
+    Please consult [pytorch.org](https://pytorch.org/get-started/locally/) to get pip instructions for your driver's version.
+    For our project, we installed pytorch and torchvision with:
+
+```
+pip install torch==1.5.1+cu101 torchvision==0.6.1+cu101 -f https://download.pytorch.org/whl/torch_stable.html
+```
+
+
 * Download the [COCO dataset images from 2017](http://cocodataset.org/#download) and [GloVe Embedding Vectors](http://nlp.stanford.edu/data/glove.6B.zip) and place them into the data directory. 
 The needed annotations are already included in this repository and were already processed.
 Please note that the described command will not only download the dataset but will also start the model training and evaluation.
@@ -55,26 +71,6 @@ the GLOVE embeddings into Word2Vec file format):
 ```
 python3 utils/glove_conv.py
 ```
-
-* Install python libraries
-
-```
-pip3 install -r requirements.txt
-```
-
-Requirements have been automatically generated using [pigar](https://github.com/damnever/pigar). 
-This tool does not always detect all dependencies correctly and you might need to install some packages
-manually (for example, packages like cython which is not used in the project but is used to correctly install
-some dependencies). If you run into an error check the warnings and install the missing packages accordingly.
-
-Please note that you will need to install the pytorch framework that matches your Nvidia GPU Drivers manually.
-
-For our project, we installed pytorch and torchvision with:
-
-```
-pip install torch==1.5.1+cu101 torchvision==0.6.1+cu101 -f https://download.pytorch.org/whl/torch_stable.html
-```
-Please consult [pytorch.org](https://pytorch.org/get-started/locally/) to get pip instructions for other versions.
 
 ## Optional: Custom installation
 
