@@ -12,7 +12,7 @@ nltk == 3.5
 
 # sose2020_image_caption_deep_learning/src/main.py: 9
 # sose2020_image_caption_deep_learning/src/model.py: 5
-numpy == 1.18.3
+numpy == 1.22.0
 
 # sose2020_image_caption_deep_learning/src/main.py: 19
 # sose2020_image_caption_deep_learning/src/model.py: 13
