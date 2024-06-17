@@ -28,7 +28,7 @@ pycocotools == 2.0.1
 git+https://github.com/salaniz/pycocoevalcap
 
 # sose2020_image_caption_deep_learning/src/preprocessing.py: 16
-scikit_learn == 0.22.2.post1
+scikit_learn == 1.5.0
 
 # sose2020_image_caption_deep_learning/src/main.py: 1,3,6,7,8
 # sose2020_image_caption_deep_learning/src/model.py: 1,2,3,4,12
